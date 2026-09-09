@@ -36,6 +36,9 @@ jobs:
       - name: Verify production artifact
         run: npm run verify
 
+      - name: Browser acceptance — direct file and HTTP hosted
+        run: npm run test:browser
+
       - name: Commit generated index.html when changed
         if: github.event_name == 'push'
         shell: bash
