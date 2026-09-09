@@ -210,12 +210,17 @@ test("J — explicit external operation sends expected request/auth but never lo
   }
 });
 
-test("endpoint policy requires HTTPS remotely and permits HTTP only on loopback", () => {
+test("endpoint policy requires HTTPS remotely, permits loopback HTTP, and rejects URL-embedded credentials", () => {
   assert.equal(validateExternalAIEndpoint("https://api.example.com/v1/chat").ok, true);
+  assert.equal(validateExternalAIEndpoint("https://api.example.com/v1/chat?api-version=2026-01-01").ok, true);
   assert.equal(validateExternalAIEndpoint("http://localhost:11434/v1/chat").ok, true);
   assert.equal(validateExternalAIEndpoint("http://127.0.0.1:11434/v1/chat").ok, true);
   assert.equal(validateExternalAIEndpoint("http://[::1]:11434/v1/chat").ok, true);
   assert.equal(validateExternalAIEndpoint("http://api.example.com/v1/chat").ok, false);
+  assert.equal(validateExternalAIEndpoint(`https://user:${TEST_SECRET}@api.example.com/v1/chat`).ok, false);
+  assert.equal(validateExternalAIEndpoint(`https://api.example.com/v1/chat?api_key=${TEST_SECRET}`).ok, false);
+  assert.equal(validateExternalAIEndpoint(`https://api.example.com/v1/chat?access_token=${TEST_SECRET}`).ok, false);
+  assert.equal(validateExternalAIEndpoint(`https://api.example.com/v1/chat?token=${TEST_SECRET}`).ok, false);
   assert.equal(validateExternalAIEndpoint("javascript:alert(1)").ok, false);
   assert.equal(validateExternalAIEndpoint("data:text/plain,x").ok, false);
   assert.equal(validateExternalAIEndpoint("file:///tmp/model").ok, false);
@@ -260,6 +265,7 @@ test("production bundle contains hardening integration and preserves single-file
   assert.ok(html.includes("buildBackupPayload(s.settings, s.data)"));
   assert.ok(html.includes("SecretStore.clearApiKey();"));
   assert.ok(html.includes("validateExternalAIEndpoint"));
+  assert.ok(html.includes("Do not put credentials in endpoint URL parameters."));
   assert.equal(/<script[^>]+src=/i.test(html), false);
   assert.equal(html.includes(TEST_SECRET), false);
 });
