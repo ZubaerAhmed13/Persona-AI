@@ -307,6 +307,13 @@ try {
       res.end(html);
       return;
     }
+    if (req.url === "/favicon.ico") {
+      // Chromium probes this automatically even when Persona declares no favicon.
+      // It is browser chrome, not a Persona runtime dependency.
+      res.writeHead(204, { "cache-control": "no-store" });
+      res.end();
+      return;
+    }
     res.writeHead(404, { "content-type": "text/plain" });
     res.end("Not found");
   });
