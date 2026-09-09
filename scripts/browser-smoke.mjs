@@ -177,7 +177,7 @@ async function verifyIndexedDbSecretScrub(cdp, label) {
       await new Promise((resolve2, reject) => {
         const tx = db.transaction("people", "readwrite");
         tx.objectStore("people").put({
-          id: ${JSON.stringify(fixtureId)},
+          id: ${JSON.stringify("persona-browser-secret-fixture-placeholder")}.replace("placeholder", label)},
           name: "Browser Legacy Secret Fixture",
           providerToken: ${JSON.stringify(TEST_SECRET)},
           createdAt: "2026-09-09T00:00:00.000Z",
@@ -195,8 +195,6 @@ async function verifyIndexedDbSecretScrub(cdp, label) {
   })()`);
   assert.equal(inserted, true, `${label}: could not seed legacy IndexedDB secret fixture`);
 
-  // A real application reload invokes loadAll(), which must sanitize the record and
-  // write the secret-free form back into IndexedDB rather than only cleaning memory.
   await reload(cdp);
 
   const stored = await cdp.evaluate(`(async () => {
@@ -208,7 +206,7 @@ async function verifyIndexedDbSecretScrub(cdp, label) {
     try {
       return await new Promise((resolve2, reject) => {
         const tx = db.transaction("people", "readonly");
-        const request = tx.objectStore("people").get(${JSON.stringify(fixtureId)});
+        const request = tx.objectStore("people").get(${JSON.stringify("persona-browser-secret-fixture-placeholder")}.replace("placeholder", label));
         request.onsuccess = () => resolve2(request.result || null);
         request.onerror = () => reject(request.error || new Error("Fixture read failed"));
       });
@@ -256,7 +254,6 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
 
   await verifyIndexedDbSecretScrub(cdp, label);
 
-  // Local-mode startup and the scrub reload must remain completely network-isolated.
   assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: local-mode startup/scrub made an external request`);
 
   const settingsOpened = await cdp.evaluate(`(() => {
@@ -269,7 +266,6 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
   assert.equal(settingsOpened, true, `${label}: Settings navigation control not found`);
   await sleep(400);
 
-  // Deliberately reveal the External API configuration UI. Merely selecting it must not transmit anything.
   const externalUiSelected = await cdp.evaluate(`(() => {
     const provider = document.querySelector("#aiProvider");
     if (!provider) return false;
@@ -352,14 +348,12 @@ try {
     if (entry.level === "error" && !/favicon\.ico/i.test(entry.text || "")) runtimeErrors.push(entry.text || "Browser log error");
   });
 
-  // 1) Direct-file acceptance path.
   await navigate(cdp, pathToFileURL(indexPath).href);
   requestUrls = [];
   runtimeErrors = [];
   await prepareApp(cdp);
   await verifyLoadedApp(cdp, "direct-file", requestUrls, runtimeErrors);
 
-  // 2) HTTP-hosted acceptance path, equivalent to the GitHub Pages delivery model.
   server = createServer((req, res) => {
     if (req.url === "/" || req.url === "/index.html") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
@@ -367,8 +361,6 @@ try {
       return;
     }
     if (req.url === "/favicon.ico") {
-      // Chromium probes this automatically even when Persona declares no favicon.
-      // It is browser chrome, not a Persona runtime dependency.
       res.writeHead(204, { "cache-control": "no-store" });
       res.end();
       return;
@@ -390,21 +382,21 @@ try {
 } finally {
   cdp?.close();
 
-  // Terminate Chrome before closing the HTTP server. Chrome may keep HTTP/1.1
-  // connections alive, so reversing this order can make server.close() hang.
   const browserExited = chromeProcess.exitCode === null ? once(chromeProcess, "exit").catch(() => []) : Promise.resolve([]);
   if (chromeProcess.exitCode === null) chromeProcess.kill("SIGTERM");
-  await Promise.race([browserExited, sleep(1000)]);
+  await Promise.race([browserExited, sleep(2000)]);
   if (chromeProcess.exitCode === null) {
     chromeProcess.kill("SIGKILL");
-    await Promise.race([browserExited, sleep(1000)]);
+    await Promise.race([browserExited, sleep(2000)]);
   }
 
   if (server) {
     server.closeAllConnections?.();
     await new Promise((resolve2) => server.close(() => resolve2()));
   }
-  await rm(profileDir, { recursive: true, force: true });
+
+  await sleep(250);
+  await rm(profileDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
 }
 
 if (stderr && /(?:SyntaxError|ReferenceError|Uncaught TypeError)/i.test(stderr)) {
