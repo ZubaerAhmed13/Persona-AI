@@ -64,5 +64,24 @@ if (html.includes(resetTail)) {
   throw new Error("reset secret postcondition: hardened reset tail not found");
 }
 
+// Persona v3.1.1 remains a genuine single-file deliverable. The historical bundle still
+// attempted to register service-worker.js even though that asset is not shipped or deployed.
+// Under HTTP/GitHub Pages this caused a guaranteed 404 and a browser console error. Keep the
+// existing boot call stable, but make the registration hook intentionally dependency-free.
+const legacyServiceWorkerRegistration = `  function registerSW() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js").catch(() => {
+      });
+    }
+  }`;
+const singleFileServiceWorkerHook = `  function registerSW() {
+    // Single-file build: no external service-worker asset is required or requested.
+  }`;
+if (html.includes(legacyServiceWorkerRegistration)) {
+  replaceExactlyOnce(legacyServiceWorkerRegistration, singleFileServiceWorkerHook, "single-file service worker policy");
+} else if (!html.includes(singleFileServiceWorkerHook)) {
+  throw new Error("single-file service worker policy: expected registration hook not found");
+}
+
 await writeFile(indexPath, html, "utf8");
-console.log("Enforced Persona restore/reset hardening policy");
+console.log("Enforced Persona restore/reset/single-file hardening policy");
