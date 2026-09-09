@@ -16,7 +16,7 @@ const PASSWORD = "Persona-v3.1.1-CI-roundtrip-42!";
 const MOCK_KEY = "PERSONA_BROWSER_MOCK_API_KEY_7f11";
 const MOCK_RESPONSE = "MOCK_EXTERNAL_OK_7f11";
 const EXPECTED_STORES = Object.keys(fixture.data).sort();
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
 
 function findChrome() {
   for (const candidate of [process.env.CHROME_BIN, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].filter(Boolean)) {
@@ -82,7 +82,7 @@ async function waitForDevTools(profileDir, proc) {
           if (target) return target.webSocketDebuggerUrl;
         }
       }
-    } catch (e) { lastError = e; }
+    } catch (error) { lastError = error; }
     await sleep(100);
   }
   throw new Error(`Chrome DevTools did not become ready: ${lastError?.message || "unknown error"}`);
@@ -91,6 +91,13 @@ async function waitForDevTools(profileDir, proc) {
 async function navigate(cdp, url) {
   const loaded = cdp.waitFor("Page.loadEventFired");
   await cdp.send("Page.navigate", { url });
+  await loaded;
+  await sleep(500);
+}
+
+async function reload(cdp) {
+  const loaded = cdp.waitFor("Page.loadEventFired");
+  await cdp.send("Page.reload", { ignoreCache: true });
   await loaded;
   await sleep(500);
 }
@@ -107,21 +114,27 @@ async function waitUntil(cdp, expression, label, timeoutMs = 10000) {
 async function clickByText(cdp, text) {
   const ok = await cdp.evaluate(`(() => {
     const wanted = ${JSON.stringify(text.toLowerCase())};
-    const el = Array.from(document.querySelectorAll("button,a,[role='button']"))
-      .find((x) => (x.textContent || "").trim().toLowerCase() === wanted);
+    const el = Array.from(document.querySelectorAll("button,a,[role='button']")).find((x) => (x.textContent || "").trim().toLowerCase() === wanted);
     if (!el) return false; el.click(); return true;
   })()`);
   assert.equal(ok, true, `Control not found: ${text}`);
 }
 
-async function openSettings(cdp) {
-  const ok = await cdp.evaluate(`(() => {
-    const els = Array.from(document.querySelectorAll("button,a,[role='button'],[data-route]"));
-    const el = els.find((x) => /^settings$/i.test((x.textContent || "").trim())) || els.find((x) => /settings/i.test((x.textContent || "").trim()));
-    if (!el) return false; el.click(); return true;
+async function openView(cdp, view, readySelector) {
+  const ok = await cdp.evaluate(`(() => { const el = document.querySelector(${JSON.stringify(`[data-view="${view}"]`)}); if (!el) return false; el.click(); return true; })()`);
+  assert.equal(ok, true, `${view} navigation control not found`);
+  await waitUntil(cdp, `!!document.querySelector(${JSON.stringify(readySelector)})`, `${view} view controls`);
+}
+const openData = (cdp) => openView(cdp, "data", "#importFile");
+const openSettings = (cdp) => openView(cdp, "settings", "#aiProvider");
+
+async function bootstrapReturningUser(cdp) {
+  await cdp.evaluate(`(() => {
+    const current = JSON.parse(localStorage.getItem(${JSON.stringify(SETTINGS_KEY)}) || "{}");
+    localStorage.setItem(${JSON.stringify(SETTINGS_KEY)}, JSON.stringify({ ...current, onboardingDone: true, aiProvider: "local", aiEnabled: true }));
+    return true;
   })()`);
-  assert.equal(ok, true, "Settings navigation control not found");
-  await waitUntil(cdp, `!!document.querySelector("#importFile")`, "Settings data controls");
+  await reload(cdp);
 }
 
 async function installDownloadCapture(cdp) {
@@ -154,7 +167,7 @@ async function attachJson(cdp, selector, filename, text) {
 }
 
 async function importNormal(cdp, text) {
-  await openSettings(cdp);
+  await openData(cdp);
   await attachJson(cdp, "#importFile", "persona-v31.json", text);
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => (b.textContent || "").includes("Create safety backup & Import"))`, "normal import preview");
   const loaded = cdp.waitFor("Page.loadEventFired");
@@ -163,7 +176,7 @@ async function importNormal(cdp, text) {
 }
 
 async function resetUi(cdp) {
-  await openSettings(cdp);
+  await openData(cdp);
   const ok = await cdp.evaluate(`(() => { const el = document.querySelector('[data-action="resetAll"]'); if (!el) return false; el.click(); return true; })()`);
   assert.equal(ok, true, "Delete All Data action unavailable");
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => /^Delete everything$/i.test((b.textContent || "").trim()))`, "reset confirmation");
@@ -204,7 +217,7 @@ function assertEmpty(db, label) {
 }
 
 async function exportNormal(cdp) {
-  await openSettings(cdp); await installDownloadCapture(cdp);
+  await openData(cdp); await installDownloadCapture(cdp);
   const before = await cdp.evaluate(`window.__personaCapturedDownloads.length`);
   assert.equal(await cdp.evaluate(`(() => { const el = document.querySelector('[data-action="backup"]'); if (!el) return false; el.click(); return true; })()`), true, "JSON backup action unavailable");
   const text = await waitDownload(cdp, before); const data = JSON.parse(text);
@@ -213,7 +226,7 @@ async function exportNormal(cdp) {
 }
 
 async function exportEncrypted(cdp) {
-  await openSettings(cdp); await installDownloadCapture(cdp);
+  await openData(cdp); await installDownloadCapture(cdp);
   const before = await cdp.evaluate(`window.__personaCapturedDownloads.length`);
   assert.equal(await cdp.evaluate(`(() => { const el = document.querySelector('[data-action="encryptedBackup"]'); if (!el) return false; el.click(); return true; })()`), true, "Encrypted backup action unavailable");
   await waitUntil(cdp, `!!document.querySelector("#enc_pw") && !!document.querySelector("#enc_pw2")`, "encrypted export fields");
@@ -225,7 +238,7 @@ async function exportEncrypted(cdp) {
 }
 
 async function restoreEncrypted(cdp, text) {
-  await openSettings(cdp);
+  await openData(cdp);
   assert.equal(await cdp.evaluate(`(() => { const el = document.querySelector('[data-action="restoreEncrypted"]'); if (!el) return false; el.click(); return true; })()`), true, "Encrypted restore action unavailable");
   await waitUntil(cdp, `!!document.querySelector("#dec_pw")`, "encrypted restore password");
   await cdp.evaluate(`document.querySelector("#dec_pw").value=${JSON.stringify(PASSWORD)}`);
@@ -239,7 +252,7 @@ async function regressAllViews(cdp, runtimeErrors) {
   assert.ok(views.length >= 20, `Only ${views.length} product routes found`);
   for (const view of views) {
     const errorsBefore = runtimeErrors.length;
-    const ok = await cdp.evaluate(`(() => { const el = document.querySelector('[data-view=${JSON.stringify(view)}]'); if (!el) return false; el.click(); return true; })()`);
+    const ok = await cdp.evaluate(`(() => { const el = document.querySelector(${JSON.stringify(`[data-view="${"__VIEW__"}"]`)}.replace('__VIEW__', ${JSON.stringify(view)})); if (!el) return false; el.click(); return true; })()`);
     assert.equal(ok, true, `${view}: navigation failed`); await sleep(80);
     const text = await cdp.evaluate(`document.querySelector('.content')?.innerText || ''`);
     assert.ok(text.length > 20, `${view}: empty rendered content`);
@@ -294,36 +307,37 @@ try {
     if (req.url === "/" || req.url === "/index.html") { res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}); res.end(html); return; }
     if (req.url === "/favicon.ico") { res.writeHead(204); res.end(); return; }
     if (req.url === "/v1/chat/completions" && req.method === "POST") {
-      let body=""; req.setEncoding("utf8"); req.on("data",c=>body+=c); req.on("end",()=>{ apiRequests.push({url:req.url,method:req.method,authorization:req.headers.authorization||"",body}); res.writeHead(200,{"content-type":"application/json"}); res.end(JSON.stringify({choices:[{message:{content:MOCK_RESPONSE}}]})); }); return;
+      let body=""; req.setEncoding("utf8"); req.on("data",chunk=>body+=chunk); req.on("end",()=>{ apiRequests.push({url:req.url,method:req.method,authorization:req.headers.authorization||"",body}); res.writeHead(200,{"content-type":"application/json"}); res.end(JSON.stringify({choices:[{message:{content:MOCK_RESPONSE}}]})); }); return;
     }
     res.writeHead(404); res.end("Not found");
   });
-  await new Promise((r)=>server.listen(0,"127.0.0.1",r));
+  await new Promise((resolve2)=>server.listen(0,"127.0.0.1",resolve2));
   const address=server.address(); assert.ok(address && typeof address==="object"); const hostedBase=`http://127.0.0.1:${address.port}`;
   chromeProcess=spawn(chrome,["--headless=new","--no-sandbox","--disable-gpu","--disable-dev-shm-usage","--remote-debugging-port=0",`--user-data-dir=${profileDir}`,"about:blank"],{stdio:["ignore","ignore","pipe"]});
-  chromeProcess.stderr.on("data",c=>stderr+=String(c));
+  chromeProcess.stderr.on("data",chunk=>stderr+=String(chunk));
   cdp=new CDP(await waitForDevTools(profileDir,chromeProcess)); await cdp.connect();
   await cdp.send("Page.enable"); await cdp.send("Runtime.enable"); await cdp.send("Network.enable"); await cdp.send("Log.enable");
-  cdp.on("Runtime.exceptionThrown",p=>runtimeErrors.push(p.exceptionDetails?.exception?.description||p.exceptionDetails?.text||"Uncaught exception"));
-  cdp.on("Network.requestWillBeSent",p=>requestUrls.push(p.request?.url||""));
-  cdp.on("Runtime.consoleAPICalled",p=>consoleMessages.push((p.args||[]).map(x=>String(x.value??x.description??"")).join(" ")));
-  cdp.on("Log.entryAdded",p=>{ const e=p.entry||{}; if(e.level==="error"&&!/favicon\.ico/i.test(e.text||""))runtimeErrors.push(e.text||"Browser log error"); });
+  cdp.on("Runtime.exceptionThrown",params=>runtimeErrors.push(params.exceptionDetails?.exception?.description||params.exceptionDetails?.text||"Uncaught exception"));
+  cdp.on("Network.requestWillBeSent",params=>requestUrls.push(params.request?.url||""));
+  cdp.on("Runtime.consoleAPICalled",params=>consoleMessages.push((params.args||[]).map(x=>String(x.value??x.description??"")).join(" ")));
+  cdp.on("Log.entryAdded",params=>{ const e=params.entry||{}; if(e.level==="error"&&!/favicon\.ico/i.test(e.text||""))runtimeErrors.push(e.text||"Browser log error"); });
 
   await navigate(cdp,hostedBase+"/index.html");
+  await bootstrapReturningUser(cdp);
   await installDownloadCapture(cdp); await importNormal(cdp,fixtureText);
   assertFixture(await snapshot(cdp),"v3.1 compatibility import");
   await regressAllViews(cdp,runtimeErrors);
   await testLocalAnalysis(cdp,apiRequests,requestUrls);
 
   const normalBefore=canonical(await snapshot(cdp)); const normalText=await exportNormal(cdp);
-  await resetUi(cdp); assertEmpty(await snapshot(cdp),"normal round-trip reset"); await installDownloadCapture(cdp); await importNormal(cdp,normalText);
+  await resetUi(cdp); assertEmpty(await snapshot(cdp),"normal round-trip reset"); await bootstrapReturningUser(cdp); await installDownloadCapture(cdp); await importNormal(cdp,normalText);
   assert.deepEqual(canonical(await snapshot(cdp)),normalBefore,"Full backup -> reset -> restore changed the database");
 
   await testExternalMock(cdp,hostedBase,apiRequests,consoleMessages);
   const encryptedBefore=canonical(await snapshot(cdp)); const encryptedText=await exportEncrypted(cdp);
   await resetUi(cdp); assertEmpty(await snapshot(cdp),"encrypted round-trip reset");
   assert.equal(await cdp.evaluate(`sessionStorage.getItem(${JSON.stringify(SESSION_KEY)})`),null,"Reset did not clear API key");
-  await restoreEncrypted(cdp,encryptedText);
+  await bootstrapReturningUser(cdp); await restoreEncrypted(cdp,encryptedText);
   assert.deepEqual(canonical(await snapshot(cdp)),encryptedBefore,"Encrypted backup -> reset -> restore changed the database");
   assert.equal(await cdp.evaluate(`sessionStorage.getItem(${JSON.stringify(SESSION_KEY)})`),null,"Encrypted restore restored API key");
   assert.deepEqual(runtimeErrors,[],`Runtime errors: ${runtimeErrors.join(" | ")}`);
@@ -332,7 +346,7 @@ try {
 } finally {
   cdp?.close();
   if(chromeProcess){ const exited=chromeProcess.exitCode===null?once(chromeProcess,"exit").catch(()=>[]):Promise.resolve([]); if(chromeProcess.exitCode===null)chromeProcess.kill("SIGTERM"); await Promise.race([exited,sleep(2000)]); if(chromeProcess.exitCode===null){chromeProcess.kill("SIGKILL");await Promise.race([exited,sleep(2000)]);} }
-  if(server){server.closeAllConnections?.();await new Promise(r=>server.close(()=>r()));}
+  if(server){server.closeAllConnections?.();await new Promise(resolve2=>server.close(()=>resolve2()));}
   await sleep(250); await rm(profileDir,{recursive:true,force:true,maxRetries:10,retryDelay:150});
 }
 if(stderr&&/(?:SyntaxError|ReferenceError|Uncaught TypeError)/i.test(stderr))throw new Error(`Chrome stderr contained a JavaScript failure: ${stderr.slice(-4000)}`);
