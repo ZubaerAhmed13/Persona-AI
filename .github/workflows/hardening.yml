@@ -3,6 +3,7 @@ name: Persona hardening verification
 on:
   push:
     branches:
+      - main
       - 'hardening/**'
   pull_request:
     branches:
@@ -15,7 +16,7 @@ jobs:
   hardening:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,6 +39,9 @@ jobs:
 
       - name: Browser acceptance — direct file and HTTP hosted
         run: npm run test:browser
+
+      - name: Complete product/backup/AI browser acceptance
+        run: npm run test:acceptance
 
       - name: Commit generated index.html when changed
         if: github.event_name == 'push'
