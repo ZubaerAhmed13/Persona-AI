@@ -143,6 +143,15 @@ export function validateExternalAIEndpoint(endpoint) {
   if (protocol !== "https:" && protocol !== "http:") {
     return { ok: false, message: "External AI endpoints must use HTTPS. HTTP is allowed only for localhost." };
   }
+  if (url.username || url.password) {
+    return { ok: false, message: "Do not put credentials in the endpoint URL. Use the API key field instead." };
+  }
+  for (const key of url.searchParams.keys()) {
+    const normalized = String(key).replace(/[^a-z0-9]/gi, "").toLowerCase();
+    if (/^(?:key|apikey|token|accesstoken|refreshtoken|authorization|auth|clientsecret|providersecret|providertoken)$/.test(normalized)) {
+      return { ok: false, message: "Do not put credentials in endpoint URL parameters. Use the API key field instead." };
+    }
+  }
   const host = url.hostname.toLowerCase();
   const local = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
   if (protocol === "http:" && !local) {

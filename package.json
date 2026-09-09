@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Persona AI local-first single-file application hardening build",
   "scripts": {
-    "build": "node scripts/build.mjs && node scripts/enforce-import-policy.mjs",
+    "build": "node scripts/build.mjs && node scripts/enforce-hardening-policy.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify": "node scripts/verify.mjs",
     "check": "npm run build && npm test && npm run verify"

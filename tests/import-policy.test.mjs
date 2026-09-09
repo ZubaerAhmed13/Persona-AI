@@ -6,21 +6,32 @@ import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-test("normal JSON restore clears current session credentials and applies only sanitized imported settings", async () => {
-  const html = await readFile(resolve(here, "../index.html"), "utf8");
+async function productionHtml() {
+  return readFile(resolve(here, "../index.html"), "utf8");
+}
+
+test("normal JSON restore creates safety backup before applying imported settings and clears session credentials", async () => {
+  const html = await productionHtml();
   const start = html.indexOf("  async function safeImport(parsed) {");
   const end = html.indexOf("  function openAuditLog()", start);
   assert.ok(start >= 0 && end > start, "safeImport function not found");
   const source = html.slice(start, end);
-  assert.ok(source.includes("// Normal backup restore intentionally clears session credentials."));
-  assert.ok(source.includes("SecretStore.clearApiKey();"));
-  assert.ok(source.includes("if (parsed && parsed.settings) setSettings(importedSettings.settings);"));
+
+  const snapshotPos = source.indexOf("const snapshot = buildBackupPayload(getState().settings, getState().data);");
+  const downloadPos = source.indexOf('download2("persona-safety-backup.json"');
+  const clearPos = source.indexOf("SecretStore.clearApiKey();");
+  const settingsPos = source.indexOf("if (parsed && parsed.settings) setSettings(importedSettings.settings);");
+
+  assert.ok(snapshotPos >= 0 && downloadPos > snapshotPos, "pre-import safety backup is missing");
+  assert.ok(clearPos > downloadPos, "session secret must be cleared after the pre-import safety backup is captured");
+  assert.ok(settingsPos > clearPos, "imported settings must be applied only after session secret clearing");
+  assert.ok(source.includes("// Capture the current non-secret state before replacing settings or data."));
   assert.ok(source.includes("const importedSettings = prepareImportedSettings(parsed && parsed.settings);"));
   assert.equal(source.includes("setSettings({ aiApiKey"), false);
 });
 
-test("encrypted JSON restore also clears current session credentials and applies sanitized settings", async () => {
-  const html = await readFile(resolve(here, "../index.html"), "utf8");
+test("encrypted JSON restore clears current session credentials and applies sanitized settings", async () => {
+  const html = await productionHtml();
   const decryptAnchor = html.indexOf("const parsed = await decryptBackupJSON(encData, pw);");
   const safeImportStart = html.indexOf("  async function safeImport(parsed) {", decryptAnchor);
   assert.ok(decryptAnchor >= 0 && safeImportStart > decryptAnchor, "encrypted restore block not found");
@@ -29,4 +40,18 @@ test("encrypted JSON restore also clears current session credentials and applies
   assert.ok(source.includes("SecretStore.clearApiKey();"));
   assert.ok(source.includes("if (parsed && parsed.settings) setSettings(importedSettings.settings);"));
   assert.ok(source.includes("sanitizeSecretsDeep(parsed && parsed.data"));
+});
+
+test("complete reset has a final secret-clear postcondition after legacy settings migration", async () => {
+  const html = await productionHtml();
+  const start = html.indexOf("  async function resetAll() {");
+  const end = html.indexOf("  var DB_NAME", start);
+  assert.ok(start >= 0 && end > start, "resetAll function not found");
+  const source = html.slice(start, end);
+  const loadPos = source.indexOf("const s = loadSettings();");
+  const savePos = source.indexOf("saveSettings({ ...s, onboardingDone: false });");
+  const finalClearPos = source.lastIndexOf("SecretStore.clearApiKey();");
+  assert.ok(loadPos >= 0 && savePos > loadPos, "reset settings migration/save flow missing");
+  assert.ok(finalClearPos > savePos, "reset must clear SecretStore after any legacy migration can run");
+  assert.ok(source.includes("Reset postcondition: even a just-migrated legacy credential is gone."));
 });
