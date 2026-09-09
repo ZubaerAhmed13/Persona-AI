@@ -3,7 +3,7 @@ name: Persona hardening verification
 on:
   push:
     branches:
-      - hardening/v3.1.1
+      - 'hardening/**'
   pull_request:
     branches:
       - main
