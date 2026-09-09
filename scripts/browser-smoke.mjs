@@ -69,16 +69,21 @@ class CDP {
   close() { try { this.ws?.close(); } catch {} }
 }
 
-async function waitForDevTools(port) {
-  const url = `http://127.0.0.1:${port}/json/list`;
+async function waitForDevTools(profileDir, chromeProcess) {
+  const activePortFile = join(profileDir, "DevToolsActivePort");
   let lastError;
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 150; i++) {
+    if (chromeProcess.exitCode !== null) throw new Error(`Chrome exited before DevTools became ready (exit ${chromeProcess.exitCode})`);
     try {
-      const response = await fetch(url);
-      if (response.ok) {
-        const targets = await response.json();
-        const target = targets.find((x) => x.type === "page" && x.webSocketDebuggerUrl);
-        if (target) return target.webSocketDebuggerUrl;
+      const active = await readFile(activePortFile, "utf8");
+      const port = Number(active.split(/\r?\n/)[0]);
+      if (Number.isInteger(port) && port > 0) {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+        if (response.ok) {
+          const targets = await response.json();
+          const target = targets.find((x) => x.type === "page" && x.webSocketDebuggerUrl);
+          if (target) return target.webSocketDebuggerUrl;
+        }
       }
     } catch (error) { lastError = error; }
     await sleep(100);
@@ -269,24 +274,23 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
 
 const chrome = findChrome();
 const profileDir = await mkdtemp(join(tmpdir(), "persona-chrome-"));
-const port = 9222 + Math.floor(Math.random() * 500);
 const chromeProcess = spawn(chrome, [
   "--headless=new",
   "--no-sandbox",
   "--disable-gpu",
   "--disable-dev-shm-usage",
   "--allow-file-access-from-files",
-  `--remote-debugging-port=${port}`,
+  "--remote-debugging-port=0",
   `--user-data-dir=${profileDir}`,
   "about:blank"
-], { stdio: ["ignore", "pipe", "pipe"] });
+], { stdio: ["ignore", "ignore", "pipe"] });
 
 let stderr = "";
 chromeProcess.stderr.on("data", (chunk) => { stderr += String(chunk); });
 let server;
 let cdp;
 try {
-  const wsUrl = await waitForDevTools(port);
+  const wsUrl = await waitForDevTools(profileDir, chromeProcess);
   cdp = new CDP(wsUrl);
   await cdp.connect();
   await cdp.send("Page.enable");
