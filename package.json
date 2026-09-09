@@ -1,0 +1,16 @@
+{
+  "name": "persona-ai",
+  "version": "3.1.1",
+  "private": true,
+  "type": "module",
+  "description": "Persona AI local-first single-file application hardening build",
+  "scripts": {
+    "build": "node scripts/build.mjs && node scripts/enforce-import-policy.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify": "node scripts/verify.mjs",
+    "check": "npm run build && npm test && npm run verify"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

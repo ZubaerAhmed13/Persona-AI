@@ -915,6 +915,202 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     }
   });
 
+  /* PERSONA_HARDENING_RUNTIME_START */
+  var SECRET_SETTING_KEYS = Object.freeze(["aiApiKey","apiKey","authorization","accessToken","refreshToken","clientSecret","providerSecret","providerToken"]);
+  var SESSION_API_KEY = "persona.secret.aiApiKey.session";
+  function isSecretSettingKey(key) {
+    const k = String(key || "");
+    if (SECRET_SETTING_KEYS.includes(k)) return true;
+    const normalized = k.replace(/[^a-z0-9]/gi, "").toLowerCase();
+    return /(?:apikey|accesstoken|refreshtoken|clientsecret|providersecret|providertoken|authorization)$/.test(normalized);
+  }
+  
+  function sanitizePersistentSettings(input) {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+    const out = {};
+    for (const [key, value] of Object.entries(input)) {
+      if (!isSecretSettingKey(key)) out[key] = value;
+    }
+    return out;
+  }
+  
+  function sanitizeSecretsDeep(value, seen = new WeakSet()) {
+    if (value == null || typeof value !== "object") return value;
+    if (seen.has(value)) return undefined;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      return value.map((item) => sanitizeSecretsDeep(item, seen)).filter((item) => item !== undefined);
+    }
+    const out = {};
+    for (const [key, child] of Object.entries(value)) {
+      if (isSecretSettingKey(key)) continue;
+      const safe = sanitizeSecretsDeep(child, seen);
+      if (safe !== undefined) out[key] = safe;
+    }
+    return out;
+  }
+  
+  function createSecretStore(storageOverride) {
+    let memoryApiKey = "";
+    const storage = storageOverride !== undefined ? storageOverride : (() => {
+      try {
+        return globalThis.sessionStorage;
+      } catch {
+        return null;
+      }
+    })();
+  
+    function readSession() {
+      try {
+        return storage && typeof storage.getItem === "function" ? String(storage.getItem(SESSION_API_KEY) || "") : "";
+      } catch {
+        return "";
+      }
+    }
+  
+    return {
+      getApiKey() {
+        return readSession() || memoryApiKey;
+      },
+      setApiKey(value) {
+        const key = String(value || "").trim();
+        memoryApiKey = key;
+        try {
+          if (storage && typeof storage.setItem === "function" && typeof storage.removeItem === "function") {
+            if (key) storage.setItem(SESSION_API_KEY, key);
+            else storage.removeItem(SESSION_API_KEY);
+          }
+        } catch {
+          // Memory-only fallback is intentional. Never fall back to localStorage.
+        }
+        return Boolean(key);
+      },
+      clearApiKey() {
+        memoryApiKey = "";
+        try {
+          if (storage && typeof storage.removeItem === "function") storage.removeItem(SESSION_API_KEY);
+        } catch {
+        }
+      },
+      hasApiKey() {
+        return Boolean(this.getApiKey());
+      }
+    };
+  }
+  
+  function migrateLegacySettings(rawSettings, secretStore) {
+    const source = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings) ? rawSettings : {};
+    const legacyKey = typeof source.aiApiKey === "string" ? source.aiApiKey.trim() : "";
+    if (legacyKey && secretStore && typeof secretStore.setApiKey === "function") {
+      secretStore.setApiKey(legacyKey);
+    }
+    const settings = sanitizePersistentSettings(source);
+    return {
+      settings,
+      changed: Object.keys(source).some(isSecretSettingKey),
+      movedLegacyCredentialToSession: Boolean(legacyKey)
+    };
+  }
+  
+  function prepareImportedSettings(rawSettings) {
+    const source = rawSettings && typeof rawSettings === "object" && !Array.isArray(rawSettings) ? rawSettings : {};
+    return {
+      settings: sanitizePersistentSettings(source),
+      hadCredentials: Object.keys(source).some(isSecretSettingKey)
+    };
+  }
+  
+  function makeBackupPayload(settings, data, metadata) {
+    const meta = metadata && typeof metadata === "object" ? metadata : {};
+    return {
+      app: meta.app || "PERSONA AI",
+      version: meta.version,
+      schemaVersion: meta.schemaVersion,
+      exportFormatVersion: meta.exportFormatVersion,
+      exportedAt: meta.exportedAt || new Date().toISOString(),
+      settings: sanitizePersistentSettings(settings),
+      data: sanitizeSecretsDeep(data)
+    };
+  }
+  
+  function validateExternalAIEndpoint(endpoint) {
+    const raw = String(endpoint || "").trim();
+    if (!raw) return { ok: false, message: "An endpoint is required to enable external AI." };
+    let url;
+    try {
+      url = new URL(raw);
+    } catch {
+      return { ok: false, message: "Enter a valid external AI endpoint URL." };
+    }
+    const protocol = url.protocol.toLowerCase();
+    if (protocol !== "https:" && protocol !== "http:") {
+      return { ok: false, message: "External AI endpoints must use HTTPS. HTTP is allowed only for localhost." };
+    }
+    const host = url.hostname.toLowerCase();
+    const local = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
+    if (protocol === "http:" && !local) {
+      return { ok: false, message: "Remote external AI endpoints must use HTTPS." };
+    }
+    if (!url.pathname) url.pathname = "/";
+    return { ok: true, url: url.toString(), local };
+  }
+  
+  function shouldUseExternalAI(settings) {
+    return Boolean(settings && settings.aiEnabled && settings.aiProvider === "api" && String(settings.aiEndpoint || "").trim());
+  }
+  
+  async function openAICompatibleChat(fetchImpl, endpoint, apiKey, model, system, user) {
+    const checked = validateExternalAIEndpoint(endpoint);
+    if (!checked.ok) throw new Error(checked.message);
+    if (typeof fetchImpl !== "function") throw new Error("External AI request failed: network API unavailable.");
+    let response;
+    try {
+      response = await fetchImpl(checked.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: "Bearer " + apiKey } : {})
+        },
+        body: JSON.stringify({
+          model: model || "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user }
+          ],
+          temperature: 0.3
+        })
+      });
+    } catch {
+      throw new Error("External AI request failed: network unavailable, blocked, or CORS denied.");
+    }
+    if (!response || !response.ok) {
+      const status = response && Number.isFinite(response.status) ? response.status : 0;
+      throw new Error(status ? "External AI request failed: HTTP " + status : "External AI request failed.");
+    }
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error("External AI response was not valid JSON.");
+    }
+    const content = body && body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("External AI response did not contain a usable message.");
+    }
+    return content;
+  }
+  var SecretStore = createSecretStore();
+  function buildBackupPayload(settings, data) {
+    return makeBackupPayload(settings, data, {
+      app: "PERSONA AI",
+      version: APP_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      exportFormatVersion: EXPORT_FORMAT_VERSION,
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  /* PERSONA_HARDENING_RUNTIME_END */
+
   // js/storage.js
   var storage_exports = {};
   __export(storage_exports, {
@@ -1094,13 +1290,19 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
-      return { ...defaultSettings, ...parsed };
+      const migrated = migrateLegacySettings(parsed, SecretStore);
+      if (migrated.changed) localStorage.setItem(SETTINGS_KEY, JSON.stringify(migrated.settings));
+      return { ...defaultSettings, ...migrated.settings };
     } catch {
       return { ...defaultSettings };
     }
   }
   function saveSettings(s) {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    const safe = sanitizePersistentSettings(s);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe));
+    if (s && typeof s === "object") {
+      for (const key of Object.keys(s)) if (isSecretSettingKey(key)) delete s[key];
+    }
   }
   function loadMeta() {
     try {
@@ -1122,6 +1324,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     }
   }
   async function resetAll() {
+    SecretStore.clearApiKey();
     for (const s2 of STORES) await db.clear(s2);
     localStorage.removeItem("persona.meta.v1");
     const s = loadSettings();
@@ -1175,7 +1378,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
         "relationshipGoals"
       ];
       SCHEMA_VERSION = 7;
-      APP_VERSION = "3.1";
+      APP_VERSION = "3.1.1";
       ANALYTICS_ENGINE_VERSION = "3.1";
       AI_ENGINE_VERSION = "2.1";
       EXPORT_FORMAT_VERSION = "3.1";
@@ -1236,7 +1439,6 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
         theme: "system",
         aiEnabled: false,
         aiProvider: "local",
-        aiApiKey: "",
         aiEndpoint: "",
         aiModel: "",
         demoMode: false,
@@ -2756,14 +2958,19 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   }
   async function activeProvider() {
     const s = getState().settings;
-    if (s.aiEnabled && s.aiProvider === "api" && s.aiEndpoint) {
-      return new OpenAICompatibleProvider(s.aiEndpoint, s.aiApiKey, s.aiModel);
+    if (shouldUseExternalAI(s)) {
+      const checked = validateExternalAIEndpoint(s.aiEndpoint);
+      if (!checked.ok) throw new Error(checked.message);
+      return new OpenAICompatibleProvider(checked.url, SecretStore.getApiKey(), s.aiModel);
     }
     return LocalAnalyst;
   }
   function configureRemoteProvider(cfg) {
     if (!cfg || !cfg.endpoint) return { ok: false, message: "An endpoint is required to enable external AI." };
-    return { ok: true, provider: new OpenAICompatibleProvider(cfg.endpoint, cfg.apiKey, cfg.model), note: "External AI configured. It will be used only when AI processing is enabled." };
+    const checked = validateExternalAIEndpoint(cfg.endpoint);
+    if (!checked.ok) return checked;
+    if (Object.prototype.hasOwnProperty.call(cfg, "apiKey")) SecretStore.setApiKey(cfg.apiKey);
+    return { ok: true, provider: new OpenAICompatibleProvider(checked.url, SecretStore.getApiKey(), cfg.model), note: "External AI configured. Relevant context is sent only for explicit external analysis operations." };
   }
   function validateAIOutput(output) {
     const reasons = [];
@@ -2832,7 +3039,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
       };
     }
     try {
-      const provider = new OpenAICompatibleProvider(settings.aiEndpoint, settings.aiApiKey, settings.aiModel);
+      const provider = await activeProvider();
       const raw = await provider.chat(
         OpenAICompatibleProvider.SYSTEM(),
         `Answer this question using ONLY the provided evidence. Return JSON with keys: answer, epistemicType, confidence, evidenceIds, counterEvidenceIds, alternativeExplanations, missingEvidence, recommendedAction, nextObservation.
@@ -3142,14 +3349,7 @@ Evidence packet: ${JSON.stringify(packet.packet)}`
           this.model = model || "gpt-3.5-turbo";
         }
         async chat(system, user, context) {
-          const res = await fetch(this.endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...this.apiKey ? { "Authorization": "Bearer " + this.apiKey } : {} },
-            body: JSON.stringify({ model: this.model, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.3 })
-          });
-          if (!res.ok) throw new Error("AI provider error: HTTP " + res.status);
-          const data = await res.json();
-          return data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : "";
+          return openAICompatibleChat(fetch, this.endpoint, this.apiKey, this.model, system, user);
         }
         // Prompt template that enforces the evidence-first guardrails.
         static SYSTEM() {
@@ -5103,7 +5303,14 @@ Evidence: ${JSON.stringify(ctx)}`);
     (listeners.get(evt) || []).forEach((fn) => fn(payload));
   }
   async function loadAll() {
-    for (const s of STORES) state.data[s] = await db.getAll(s);
+    for (const s of STORES) {
+      const stored = await db.getAll(s);
+      const safe = sanitizeSecretsDeep(stored) || [];
+      state.data[s] = safe;
+      for (let i = 0; i < stored.length; i++) {
+        if (JSON.stringify(stored[i]) !== JSON.stringify(safe[i])) await db.put(s, safe[i]);
+      }
+    }
     state.loaded = true;
     emit("data", state.data);
     return state.data;
@@ -5174,7 +5381,8 @@ Evidence: ${JSON.stringify(ctx)}`);
     await db.put("people", p);
   }
   function setSettings(patch) {
-    Object.assign(state.settings, patch);
+    Object.assign(state.settings, sanitizePersistentSettings(patch));
+    for (const key of Object.keys(state.settings)) if (isSecretSettingKey(key)) delete state.settings[key];
     saveSettings(state.settings);
     emit("settings", state.settings);
   }
@@ -5945,7 +6153,7 @@ Evidence: ${JSON.stringify(ctx)}`);
   }
   function exportJSON() {
     const s = getState();
-    const data = { app: "PERSONA AI", version: "2.0", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), settings: s.settings, data: s.data };
+    const data = buildBackupPayload(s.settings, s.data);
     download("persona-ai-backup.json", JSON.stringify(data, null, 2), "application/json");
   }
   async function encryptBackupJSON(data, password) {
@@ -7336,8 +7544,33 @@ self.onmessage = function (e) {
       setSettings({ aiProvider: prov.value });
       document.getElementById("apiFields").hidden = prov.value !== "api";
     });
-    root().querySelector("#aiEndpoint")?.addEventListener("change", (e) => setSettings({ aiEndpoint: e.target.value }));
-    root().querySelector("#aiApiKey")?.addEventListener("change", (e) => setSettings({ aiApiKey: e.target.value }));
+    root().querySelector("#aiEndpoint")?.addEventListener("change", (e) => {
+      const raw = e.target.value.trim();
+      if (!raw) { setSettings({ aiEndpoint: "" }); return; }
+      const checked = validateExternalAIEndpoint(raw);
+      if (!checked.ok) {
+        toast(checked.message, "warn", "Invalid endpoint");
+        e.target.value = getState().settings.aiEndpoint || "";
+        return;
+      }
+      setSettings({ aiEndpoint: checked.url });
+      e.target.value = checked.url;
+    });
+    root().querySelector("#aiApiKey")?.addEventListener("change", (e) => {
+      SecretStore.setApiKey(e.target.value);
+      e.target.value = "";
+      const status = root().querySelector("#aiKeyStatus");
+      if (status) status.textContent = SecretStore.hasApiKey() ? "Key configured for this session" : "No key configured for this session";
+      toast(SecretStore.hasApiKey() ? "API key configured for this browser session." : "API key cleared.", "ok");
+    });
+    root().querySelector("#clearAiApiKey")?.addEventListener("click", () => {
+      SecretStore.clearApiKey();
+      const keyInput = root().querySelector("#aiApiKey");
+      if (keyInput) keyInput.value = "";
+      const status = root().querySelector("#aiKeyStatus");
+      if (status) status.textContent = "No key configured for this session";
+      toast("API key cleared from this browser session.", "ok");
+    });
     root().querySelector("#aiModel")?.addEventListener("change", (e) => setSettings({ aiModel: e.target.value }));
     root().querySelector("#qcToggle")?.addEventListener("change", (e) => setSettings({ quickCapture: e.target.checked }));
     root().querySelector("#backupRemToggle")?.addEventListener("change", (e) => setSettings({ backupReminder: e.target.checked }));
@@ -7785,6 +8018,7 @@ self.onmessage = function (e) {
     }
   }
   async function loadDemoAndGo() {
+    SecretStore.clearApiKey();
     const { loadDemo: loadDemo2 } = await Promise.resolve().then(() => (init_demo(), demo_exports));
     await loadDemo2();
     setSettings({ demoMode: true });
@@ -9148,9 +9382,9 @@ self.onmessage = function (e) {
         <div class="field" style="margin-top:12px"><label>Provider</label><select class="select" id="aiProvider"><option value="local" ${s.aiProvider === "local" ? "selected" : ""}>Local rule-based (built-in)</option><option value="api" ${s.aiProvider === "api" ? "selected" : ""}>External API (requires config)</option></select></div>
         <div id="apiFields" ${s.aiProvider === "api" ? "" : "hidden"}>
           <div class="field"><label>Endpoint</label><input class="input" id="aiEndpoint" value="${esc2(s.aiEndpoint)}" placeholder="https://api.example.com/v1/chat/completions"></div>
-          <div class="field"><label>API Key</label><input class="input" id="aiApiKey" type="password" value="${esc2(s.aiApiKey)}" placeholder="Enter key (kept local)"></div>
+          <div class="field"><label>API Key</label><input class="input" id="aiApiKey" type="password" autocomplete="off" placeholder="${SecretStore.hasApiKey() ? "Key configured for this session — enter to replace" : "Enter key for this browser session"}"><div class="hint" id="aiKeyStatus">${SecretStore.hasApiKey() ? "Key configured for this session" : "No key configured for this session"}</div><button class="btn btn-sm" type="button" id="clearAiApiKey" style="margin-top:6px">Clear API key</button></div>
           <div class="field"><label>Model</label><input class="input" id="aiModel" value="${esc2(s.aiModel)}" placeholder="model-name"></div>
-          <p class="hint">API integration is a scaffold for future providers. Until a working endpoint is configured, the built-in local analyst remains the active engine.</p>
+          <p class="hint">Persona can optionally use an OpenAI-compatible API for evidence-grounded analysis. Relevant context for the current request may be sent to the configured endpoint. The API key is kept only for this browser session and is never included in Persona backups.</p>
         </div>
       </div>
     </div>
@@ -10488,7 +10722,7 @@ self.onmessage = function (e) {
         return;
       }
       const s = getState();
-      const payload = { app: "PERSONA AI", version: APP_VERSION, exportedAt: (/* @__PURE__ */ new Date()).toISOString(), settings: s.settings, data: s.data };
+      const payload = buildBackupPayload(s.settings, s.data);
       try {
         const enc = await encryptBackupJSON(payload, pw);
         const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
@@ -10549,15 +10783,18 @@ self.onmessage = function (e) {
       }
       try {
         const parsed = await decryptBackupJSON(encData, pw);
+        const importedSettings = prepareImportedSettings(parsed && parsed.settings);
+        SecretStore.clearApiKey();
+        if (parsed && parsed.settings) setSettings(importedSettings.settings);
         const { db: db2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-        const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {};
+        const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};
         for (const store of Object.keys(data)) {
           if (Array.isArray(data[store])) {
             await db2.clear(store);
             for (const rec of data[store]) await db2.put(store, rec);
           }
         }
-        toast("Encrypted backup decrypted and restored.", "ok", "Restore complete");
+        toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed.", "ok", "Restore complete");
         closeModal();
         location.reload();
       } catch (e) {
@@ -10568,7 +10805,8 @@ self.onmessage = function (e) {
   async function safeImport(parsed) {
     const { detectSchema: detectSchema2, validateDataset: validateDataset2 } = validation_exports;
     const schema = detectSchema2(parsed);
-    const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {};
+    const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};
+    const importedSettings = prepareImportedSettings(parsed && parsed.settings);
     const report = validateDataset2(data);
     if (!schema.compatible || !Object.keys(data).length) {
       toast("This file does not appear to be a valid PERSONA AI backup.", "bad", "Incompatible");
@@ -10599,9 +10837,11 @@ self.onmessage = function (e) {
     cancel.onclick = closeModal;
     go2.onclick = async () => {
       const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
-      const snapshot = { app: "PERSONA AI", version: "safety-backup", exportedAt: (/* @__PURE__ */ new Date()).toISOString(), data: {} };
-      const stores = Object.keys(getState().data);
-      for (const st of stores) snapshot.data[st] = getState().data[st];
+      // Normal backup restore intentionally clears session credentials.
+      SecretStore.clearApiKey();
+      if (parsed && parsed.settings) setSettings(importedSettings.settings);
+      const snapshot = buildBackupPayload(getState().settings, getState().data);
+      snapshot.reason = "pre-import-safety";
       const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
       download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");
       for (const store of Object.keys(data)) {
@@ -10610,7 +10850,7 @@ self.onmessage = function (e) {
           for (const rec of data[store]) await db2.put(store, rec);
         }
       }
-      toast("Import applied. A safety backup was downloaded first.", "ok", "Import complete");
+      toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed. A safety backup was downloaded first.", "ok", "Import complete");
       closeModal();
       location.reload();
     };

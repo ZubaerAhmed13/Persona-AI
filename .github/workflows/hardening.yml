@@ -1,0 +1,51 @@
+name: Persona hardening verification
+
+on:
+  push:
+    branches:
+      - hardening/v3.1.1
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  hardening:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Build hardened self-contained application
+        run: npm run build
+
+      - name: Run security and regression tests
+        run: npm test
+
+      - name: Verify production artifact
+        run: npm run verify
+
+      - name: Commit generated index.html when changed
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "index.html already matches the hardened source"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "build: generate Persona AI v3.1.1 hardened bundle [skip ci]"
+          git push
