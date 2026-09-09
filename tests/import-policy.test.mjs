@@ -21,11 +21,12 @@ test("normal JSON restore clears current session credentials and applies only sa
 
 test("encrypted JSON restore also clears current session credentials and applies sanitized settings", async () => {
   const html = await readFile(resolve(here, "../index.html"), "utf8");
-  const start = html.indexOf("  async function importEncrypted() {");
-  const end = html.indexOf("  async function safeImport(parsed) {", start);
-  assert.ok(start >= 0 && end > start, "importEncrypted function not found");
-  const source = html.slice(start, end);
+  const decryptAnchor = html.indexOf("const parsed = await decryptBackupJSON(encData, pw);");
+  const safeImportStart = html.indexOf("  async function safeImport(parsed) {", decryptAnchor);
+  assert.ok(decryptAnchor >= 0 && safeImportStart > decryptAnchor, "encrypted restore block not found");
+  const source = html.slice(Math.max(0, decryptAnchor - 2500), safeImportStart);
   assert.ok(source.includes("const importedSettings = prepareImportedSettings(parsed && parsed.settings);"));
   assert.ok(source.includes("SecretStore.clearApiKey();"));
   assert.ok(source.includes("if (parsed && parsed.settings) setSettings(importedSettings.settings);"));
+  assert.ok(source.includes("sanitizeSecretsDeep(parsed && parsed.data"));
 });
