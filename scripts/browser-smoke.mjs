@@ -151,6 +151,19 @@ async function prepareApp(cdp) {
   await reload(cdp);
 }
 
+function externalRequestsFrom(requestUrls) {
+  return requestUrls.filter((url) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "file:") return false;
+      if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return false;
+      return true;
+    } catch {
+      return true;
+    }
+  });
+}
+
 async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
   const bodyText = await cdp.evaluate("document.body ? document.body.innerText : ''");
   assert.ok(typeof bodyText === "string" && bodyText.length > 500, `${label}: application body did not render`);
@@ -183,6 +196,9 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
     assert.ok(dbResult.includes(store), `${label}: required IndexedDB store missing: ${store}`);
   }
 
+  // Local-mode startup must remain completely network-isolated before any provider UI change.
+  assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: local-mode startup made an external request`);
+
   const settingsOpened = await cdp.evaluate(`(() => {
     const clickable = Array.from(document.querySelectorAll("button,a,[role='button'],[data-route]"));
     const target = clickable.find((el) => /^settings$/i.test((el.textContent || "").trim())) || clickable.find((el) => /settings/i.test((el.textContent || "").trim()));
@@ -193,25 +209,43 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
   assert.equal(settingsOpened, true, `${label}: Settings navigation control not found`);
   await sleep(400);
 
+  // Deliberately reveal the External API configuration UI. Merely selecting it must not transmit anything.
+  const externalUiSelected = await cdp.evaluate(`(() => {
+    const provider = document.querySelector("#aiProvider");
+    if (!provider) return false;
+    if (provider.value !== "api") {
+      provider.value = "api";
+      provider.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  })()`);
+  assert.equal(externalUiSelected, true, `${label}: AI provider selector missing`);
+  await sleep(500);
+
   const settingsUi = await cdp.evaluate(`(() => {
     const input = document.querySelector("#aiApiKey");
     const clear = document.querySelector("#clearAiApiKey");
-    const text = document.body ? document.body.innerText : "";
+    const apiFields = document.querySelector("#apiFields");
+    const visibleText = apiFields && !apiFields.hidden ? apiFields.innerText : "";
     return {
       hasInput: !!input,
       inputType: input?.type || null,
       inputValue: input?.value || "",
       hasClear: !!clear,
-      hasSessionCopy: /browser session/i.test(text),
-      hasExternalCopy: /OpenAI-compatible|External API/i.test(text)
+      apiFieldsVisible: !!apiFields && !apiFields.hidden,
+      hasSessionCopy: /browser session/i.test(visibleText),
+      hasExternalCopy: /OpenAI-compatible|external/i.test(visibleText)
     };
   })()`);
+  assert.equal(settingsUi.apiFieldsVisible, true, `${label}: External API fields did not become visible`);
   assert.equal(settingsUi.hasInput, true, `${label}: API-key input missing`);
   assert.equal(settingsUi.inputType, "password", `${label}: API-key input is not a password field`);
   assert.equal(settingsUi.inputValue, "", `${label}: raw session secret was rendered back into the DOM`);
   assert.equal(settingsUi.hasClear, true, `${label}: Clear API key action missing`);
-  assert.equal(settingsUi.hasSessionCopy, true, `${label}: session-only security copy missing`);
-  assert.equal(settingsUi.hasExternalCopy, true, `${label}: external processing copy missing`);
+  assert.equal(settingsUi.hasSessionCopy, true, `${label}: visible session-only security copy missing`);
+  assert.equal(settingsUi.hasExternalCopy, true, `${label}: visible external-processing copy missing`);
+
+  assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: selecting External API configuration sent data before an analysis operation`);
 
   const cleared = await cdp.evaluate(`(() => {
     const button = document.querySelector("#clearAiApiKey");
@@ -219,18 +253,6 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
     return sessionStorage.getItem(${JSON.stringify(SESSION_KEY)});
   })()`);
   assert.equal(cleared, null, `${label}: Clear API key did not remove the session secret`);
-
-  const externalRequests = requestUrls.filter((url) => {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === "file:") return false;
-      if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return false;
-      return true;
-    } catch {
-      return true;
-    }
-  });
-  assert.deepEqual(externalRequests, [], `${label}: local-mode startup made external request(s): ${externalRequests.join(", ")}`);
   assert.deepEqual(runtimeErrors, [], `${label}: uncaught browser/runtime errors: ${runtimeErrors.join(" | ")}`);
 }
 
@@ -297,7 +319,7 @@ try {
   await prepareApp(cdp);
   await verifyLoadedApp(cdp, "http-hosted", requestUrls, runtimeErrors);
 
-  console.log("browser-smoke: PASS (direct-file + HTTP-hosted, storage migration, IndexedDB schema, Settings security UX, local-mode startup network isolation)");
+  console.log("browser-smoke: PASS (direct-file + HTTP-hosted, storage migration, IndexedDB schema, Settings security UX, local-mode startup network isolation, external-config disclosure without transmission)");
 } finally {
   cdp?.close();
   if (server) await new Promise((resolve2) => server.close(resolve2));
