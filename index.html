@@ -1046,6 +1046,15 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     if (protocol !== "https:" && protocol !== "http:") {
       return { ok: false, message: "External AI endpoints must use HTTPS. HTTP is allowed only for localhost." };
     }
+    if (url.username || url.password) {
+      return { ok: false, message: "Do not put credentials in the endpoint URL. Use the API key field instead." };
+    }
+    for (const key of url.searchParams.keys()) {
+      const normalized = String(key).replace(/[^a-z0-9]/gi, "").toLowerCase();
+      if (/^(?:key|apikey|token|accesstoken|refreshtoken|authorization|auth|clientsecret|providersecret|providertoken)$/.test(normalized)) {
+        return { ok: false, message: "Do not put credentials in endpoint URL parameters. Use the API key field instead." };
+      }
+    }
     const host = url.hostname.toLowerCase();
     const local = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
     if (protocol === "http:" && !local) {
@@ -1329,6 +1338,8 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     localStorage.removeItem("persona.meta.v1");
     const s = loadSettings();
     saveSettings({ ...s, onboardingDone: false });
+    // Reset postcondition: even a just-migrated legacy credential is gone.
+    SecretStore.clearApiKey();
   }
   var DB_NAME, DB_VERSION, DATA_VERSION, STORES, SCHEMA_VERSION, APP_VERSION, ANALYTICS_ENGINE_VERSION, AI_ENGINE_VERSION, EXPORT_FORMAT_VERSION, lastMigrationReport, STORE_STAGES, _upgradedFrom, _db, db, SETTINGS_KEY, defaultSettings;
   var init_storage = __esm({
@@ -10837,13 +10848,14 @@ self.onmessage = function (e) {
     cancel.onclick = closeModal;
     go2.onclick = async () => {
       const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
-      // Normal backup restore intentionally clears session credentials.
-      SecretStore.clearApiKey();
-      if (parsed && parsed.settings) setSettings(importedSettings.settings);
+      // Capture the current non-secret state before replacing settings or data.
       const snapshot = buildBackupPayload(getState().settings, getState().data);
       snapshot.reason = "pre-import-safety";
       const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
       download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");
+      // Normal backup restore intentionally clears session credentials.
+      SecretStore.clearApiKey();
+      if (parsed && parsed.settings) setSettings(importedSettings.settings);
       for (const store of Object.keys(data)) {
         if (Array.isArray(data[store])) {
           await db2.clear(store);
