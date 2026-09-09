@@ -15,13 +15,7 @@ const SESSION_KEY = "persona.secret.aiApiKey.session";
 const SETTINGS_KEY = "persona.settings.v1";
 
 function findChrome() {
-  const candidates = [
-    process.env.CHROME_BIN,
-    "google-chrome",
-    "google-chrome-stable",
-    "chromium",
-    "chromium-browser"
-  ].filter(Boolean);
+  const candidates = [process.env.CHROME_BIN, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].filter(Boolean);
   for (const candidate of candidates) {
     const found = spawnSync("bash", ["-lc", `command -v ${JSON.stringify(candidate)} || true`], { encoding: "utf8" }).stdout.trim();
     if (found) return found;
@@ -32,13 +26,7 @@ function findChrome() {
 const sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
 
 class CDP {
-  constructor(url) {
-    this.url = url;
-    this.ws = null;
-    this.nextId = 1;
-    this.pending = new Map();
-    this.listeners = new Map();
-  }
+  constructor(url) { this.url = url; this.ws = null; this.nextId = 1; this.pending = new Map(); this.listeners = new Map(); }
   async connect() {
     this.ws = new WebSocket(this.url);
     await new Promise((resolve2, reject) => {
@@ -55,17 +43,12 @@ class CDP {
         else resolve2(message.result || {});
         return;
       }
-      if (message.method) {
-        for (const listener of this.listeners.get(message.method) || []) listener(message.params || {});
-      }
+      if (message.method) for (const listener of this.listeners.get(message.method) || []) listener(message.params || {});
     });
   }
   send(method, params = {}) {
     const id = this.nextId++;
-    return new Promise((resolve2, reject) => {
-      this.pending.set(id, { resolve: resolve2, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
-    });
+    return new Promise((resolve2, reject) => { this.pending.set(id, { resolve: resolve2, reject }); this.ws.send(JSON.stringify({ id, method, params })); });
   }
   on(method, listener) {
     if (!this.listeners.has(method)) this.listeners.set(method, new Set());
@@ -74,33 +57,16 @@ class CDP {
   }
   waitFor(method, timeoutMs = 10000) {
     return new Promise((resolve2, reject) => {
-      const off = this.on(method, (params) => {
-        clearTimeout(timer);
-        off();
-        resolve2(params);
-      });
-      const timer = setTimeout(() => {
-        off();
-        reject(new Error(`Timed out waiting for ${method}`));
-      }, timeoutMs);
+      const off = this.on(method, (params) => { clearTimeout(timer); off(); resolve2(params); });
+      const timer = setTimeout(() => { off(); reject(new Error(`Timed out waiting for ${method}`)); }, timeoutMs);
     });
   }
   async evaluate(expression) {
-    const result = await this.send("Runtime.evaluate", {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-      userGesture: true
-    });
-    if (result.exceptionDetails) {
-      const text = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Browser evaluation failed";
-      throw new Error(text);
-    }
+    const result = await this.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true });
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Browser evaluation failed");
     return result.result?.value;
   }
-  close() {
-    try { this.ws?.close(); } catch {}
-  }
+  close() { try { this.ws?.close(); } catch {} }
 }
 
 async function waitForDevTools(port) {
@@ -114,9 +80,7 @@ async function waitForDevTools(port) {
         const target = targets.find((x) => x.type === "page" && x.webSocketDebuggerUrl);
         if (target) return target.webSocketDebuggerUrl;
       }
-    } catch (error) {
-      lastError = error;
-    }
+    } catch (error) { lastError = error; }
     await sleep(100);
   }
   throw new Error(`Chrome DevTools did not become ready: ${lastError?.message || "unknown error"}`);
@@ -159,9 +123,7 @@ function externalRequestsFrom(requestUrls) {
       if (parsed.protocol === "file:") return false;
       if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return false;
       return true;
-    } catch {
-      return true;
-    }
+    } catch { return true; }
   });
 }
 
@@ -177,7 +139,7 @@ async function verifyIndexedDbSecretScrub(cdp, label) {
       await new Promise((resolve2, reject) => {
         const tx = db.transaction("people", "readwrite");
         tx.objectStore("people").put({
-          id: ${JSON.stringify("persona-browser-secret-fixture-placeholder")}.replace("placeholder", label)},
+          id: ${JSON.stringify(fixtureId)},
           name: "Browser Legacy Secret Fixture",
           providerToken: ${JSON.stringify(TEST_SECRET)},
           createdAt: "2026-09-09T00:00:00.000Z",
@@ -189,9 +151,7 @@ async function verifyIndexedDbSecretScrub(cdp, label) {
         tx.onabort = () => reject(tx.error || new Error("Fixture write aborted"));
       });
       return true;
-    } finally {
-      db.close();
-    }
+    } finally { db.close(); }
   })()`);
   assert.equal(inserted, true, `${label}: could not seed legacy IndexedDB secret fixture`);
 
@@ -206,13 +166,11 @@ async function verifyIndexedDbSecretScrub(cdp, label) {
     try {
       return await new Promise((resolve2, reject) => {
         const tx = db.transaction("people", "readonly");
-        const request = tx.objectStore("people").get(${JSON.stringify("persona-browser-secret-fixture-placeholder")}.replace("placeholder", label));
+        const request = tx.objectStore("people").get(${JSON.stringify(fixtureId)});
         request.onsuccess = () => resolve2(request.result || null);
         request.onerror = () => reject(request.error || new Error("Fixture read failed"));
       });
-    } finally {
-      db.close();
-    }
+    } finally { db.close(); }
   })()`);
   assert.ok(stored, `${label}: IndexedDB fixture disappeared during scrub`);
   assert.equal(stored.name, "Browser Legacy Secret Fixture", `${label}: benign IndexedDB data changed during scrub`);
@@ -230,8 +188,7 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
     return {
       persistedHasApiKey: Object.prototype.hasOwnProperty.call(persisted, "aiApiKey"),
       persistentContainsSecret: (localStorage.getItem(${JSON.stringify(SETTINGS_KEY)}) || "").includes(${JSON.stringify(TEST_SECRET)}),
-      sessionSecret: sessionStorage.getItem(${JSON.stringify(SESSION_KEY)}),
-      sessionCount: Object.keys(sessionStorage).length
+      sessionSecret: sessionStorage.getItem(${JSON.stringify(SESSION_KEY)})
     };
   })()`);
   assert.equal(storageResult.persistedHasApiKey, false, `${label}: legacy API key remained in persistent settings`);
@@ -253,7 +210,6 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
   }
 
   await verifyIndexedDbSecretScrub(cdp, label);
-
   assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: local-mode startup/scrub made an external request`);
 
   const settingsOpened = await cdp.evaluate(`(() => {
@@ -300,7 +256,6 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
   assert.equal(settingsUi.hasClear, true, `${label}: Clear API key action missing`);
   assert.equal(settingsUi.hasSessionCopy, true, `${label}: visible session-only security copy missing`);
   assert.equal(settingsUi.hasExternalCopy, true, `${label}: visible external-processing copy missing`);
-
   assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: selecting External API configuration sent data before an analysis operation`);
 
   const cleared = await cdp.evaluate(`(() => {
@@ -381,7 +336,6 @@ try {
   console.log("browser-smoke: PASS (direct-file + HTTP-hosted, legacy localStorage migration, real IndexedDB secret scrub persistence, Settings security UX, local-mode startup network isolation, external-config disclosure without transmission)");
 } finally {
   cdp?.close();
-
   const browserExited = chromeProcess.exitCode === null ? once(chromeProcess, "exit").catch(() => []) : Promise.resolve([]);
   if (chromeProcess.exitCode === null) chromeProcess.kill("SIGTERM");
   await Promise.race([browserExited, sleep(2000)]);
@@ -389,12 +343,10 @@ try {
     chromeProcess.kill("SIGKILL");
     await Promise.race([browserExited, sleep(2000)]);
   }
-
   if (server) {
     server.closeAllConnections?.();
     await new Promise((resolve2) => server.close(() => resolve2()));
   }
-
   await sleep(250);
   await rm(profileDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
 }
