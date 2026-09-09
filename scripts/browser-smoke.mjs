@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { createServer } from "node:http";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -322,10 +323,21 @@ try {
   console.log("browser-smoke: PASS (direct-file + HTTP-hosted, storage migration, IndexedDB schema, Settings security UX, local-mode startup network isolation, external-config disclosure without transmission)");
 } finally {
   cdp?.close();
-  if (server) await new Promise((resolve2) => server.close(resolve2));
-  chromeProcess.kill("SIGTERM");
-  await sleep(200);
-  if (!chromeProcess.killed) chromeProcess.kill("SIGKILL");
+
+  // Terminate Chrome before closing the HTTP server. Chrome may keep HTTP/1.1
+  // connections alive, so reversing this order can make server.close() hang.
+  const browserExited = chromeProcess.exitCode === null ? once(chromeProcess, "exit").catch(() => []) : Promise.resolve([]);
+  if (chromeProcess.exitCode === null) chromeProcess.kill("SIGTERM");
+  await Promise.race([browserExited, sleep(1000)]);
+  if (chromeProcess.exitCode === null) {
+    chromeProcess.kill("SIGKILL");
+    await Promise.race([browserExited, sleep(1000)]);
+  }
+
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise((resolve2) => server.close(() => resolve2()));
+  }
   await rm(profileDir, { recursive: true, force: true });
 }
 
