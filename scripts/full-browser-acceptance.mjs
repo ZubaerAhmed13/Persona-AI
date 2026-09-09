@@ -54,12 +54,6 @@ class CDP {
     this.listeners.get(method).add(fn);
     return () => this.listeners.get(method)?.delete(fn);
   }
-  waitFor(method, timeoutMs = 15000) {
-    return new Promise((resolve2, reject) => {
-      const off = this.on(method, (params) => { clearTimeout(timer); off(); resolve2(params); });
-      const timer = setTimeout(() => { off(); reject(new Error(`Timed out waiting for ${method}`)); }, timeoutMs);
-    });
-  }
   async evaluate(expression) {
     const out = await this.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true });
     if (out.exceptionDetails) throw new Error(out.exceptionDetails.exception?.description || out.exceptionDetails.text || "Browser evaluation failed");
@@ -88,27 +82,32 @@ async function waitForDevTools(profileDir, proc) {
   throw new Error(`Chrome DevTools did not become ready: ${lastError?.message || "unknown error"}`);
 }
 
+async function waitUntil(cdp, expression, label, timeoutMs = 10000) {
+  const end = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < end) {
+    try {
+      if (await cdp.evaluate(expression)) return;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(100);
+  }
+  throw new Error(`Timed out waiting for ${label}${lastError ? `: ${lastError.message}` : ""}`);
+}
+
 async function navigate(cdp, url) {
-  const loaded = cdp.waitFor("Page.loadEventFired");
   await cdp.send("Page.navigate", { url });
-  await loaded;
-  await sleep(500);
+  await waitUntil(cdp, `location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`, `navigation to ${url}`, 20000);
+  await sleep(300);
 }
 
 async function reload(cdp) {
-  const loaded = cdp.waitFor("Page.loadEventFired");
+  const marker = `reload-${Date.now()}-${Math.random()}`;
+  await cdp.evaluate(`window.__personaAcceptanceReloadMarker=${JSON.stringify(marker)}`);
   await cdp.send("Page.reload", { ignoreCache: true });
-  await loaded;
-  await sleep(500);
-}
-
-async function waitUntil(cdp, expression, label, timeoutMs = 10000) {
-  const end = Date.now() + timeoutMs;
-  while (Date.now() < end) {
-    if (await cdp.evaluate(expression)) return;
-    await sleep(100);
-  }
-  throw new Error(`Timed out waiting for ${label}`);
+  await waitUntil(cdp, `document.readyState === 'complete' && window.__personaAcceptanceReloadMarker !== ${JSON.stringify(marker)}`, "document reload", 20000);
+  await sleep(300);
 }
 
 async function clickByText(cdp, text) {
@@ -118,6 +117,14 @@ async function clickByText(cdp, text) {
     if (!el) return false; el.click(); return true;
   })()`);
   assert.equal(ok, true, `Control not found: ${text}`);
+}
+
+async function clickByTextAndWaitReload(cdp, text) {
+  const marker = `click-reload-${Date.now()}-${Math.random()}`;
+  await cdp.evaluate(`window.__personaAcceptanceReloadMarker=${JSON.stringify(marker)}`);
+  await clickByText(cdp, text);
+  await waitUntil(cdp, `document.readyState === 'complete' && window.__personaAcceptanceReloadMarker !== ${JSON.stringify(marker)}`, `${text} reload`, 20000);
+  await sleep(400);
 }
 
 async function openView(cdp, view, readySelector) {
@@ -170,9 +177,7 @@ async function importNormal(cdp, text) {
   await openData(cdp);
   await attachJson(cdp, "#importFile", "persona-v31.json", text);
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => (b.textContent || "").includes("Create safety backup & Import"))`, "normal import preview");
-  const loaded = cdp.waitFor("Page.loadEventFired");
-  await clickByText(cdp, "Create safety backup & Import");
-  await loaded; await sleep(700);
+  await clickByTextAndWaitReload(cdp, "Create safety backup & Import");
 }
 
 async function resetUi(cdp) {
@@ -180,9 +185,7 @@ async function resetUi(cdp) {
   const ok = await cdp.evaluate(`(() => { const el = document.querySelector('[data-action="resetAll"]'); if (!el) return false; el.click(); return true; })()`);
   assert.equal(ok, true, "Delete All Data action unavailable");
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => /^Delete everything$/i.test((b.textContent || "").trim()))`, "reset confirmation");
-  const loaded = cdp.waitFor("Page.loadEventFired");
-  await clickByText(cdp, "Delete everything");
-  await loaded; await sleep(700);
+  await clickByTextAndWaitReload(cdp, "Delete everything");
 }
 
 async function snapshot(cdp) {
@@ -244,7 +247,7 @@ async function restoreEncrypted(cdp, text) {
   await cdp.evaluate(`document.querySelector("#dec_pw").value=${JSON.stringify(PASSWORD)}`);
   await attachJson(cdp, "#importEncryptedFile", "persona-encrypted.json", text);
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => /^Decrypt & Restore$/i.test((b.textContent || "").trim()) && !b.disabled)`, "enabled encrypted restore");
-  const loaded = cdp.waitFor("Page.loadEventFired"); await clickByText(cdp, "Decrypt & Restore"); await loaded; await sleep(700);
+  await clickByTextAndWaitReload(cdp, "Decrypt & Restore");
 }
 
 async function regressAllViews(cdp, runtimeErrors) {
