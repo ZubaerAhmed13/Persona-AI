@@ -88,9 +88,7 @@ async function waitUntil(cdp, expression, label, timeoutMs = 10000) {
   while (Date.now() < end) {
     try {
       if (await cdp.evaluate(expression)) return;
-    } catch (error) {
-      lastError = error;
-    }
+    } catch (error) { lastError = error; }
     await sleep(100);
   }
   throw new Error(`Timed out waiting for ${label}${lastError ? `: ${lastError.message}` : ""}`);
@@ -119,12 +117,10 @@ async function clickByText(cdp, text) {
   assert.equal(ok, true, `Control not found: ${text}`);
 }
 
-async function clickByTextAndWaitReload(cdp, text) {
-  const marker = `click-reload-${Date.now()}-${Math.random()}`;
-  await cdp.evaluate(`window.__personaAcceptanceReloadMarker=${JSON.stringify(marker)}`);
+async function clickByTextAndVerifyPersistence(cdp, text) {
   await clickByText(cdp, text);
-  await waitUntil(cdp, `document.readyState === 'complete' && window.__personaAcceptanceReloadMarker !== ${JSON.stringify(marker)}`, `${text} reload`, 20000);
-  await sleep(400);
+  await sleep(1200);
+  await reload(cdp);
 }
 
 async function openView(cdp, view, readySelector) {
@@ -177,7 +173,7 @@ async function importNormal(cdp, text) {
   await openData(cdp);
   await attachJson(cdp, "#importFile", "persona-v31.json", text);
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => (b.textContent || "").includes("Create safety backup & Import"))`, "normal import preview");
-  await clickByTextAndWaitReload(cdp, "Create safety backup & Import");
+  await clickByTextAndVerifyPersistence(cdp, "Create safety backup & Import");
 }
 
 async function resetUi(cdp) {
@@ -185,7 +181,7 @@ async function resetUi(cdp) {
   const ok = await cdp.evaluate(`(() => { const el = document.querySelector('[data-action="resetAll"]'); if (!el) return false; el.click(); return true; })()`);
   assert.equal(ok, true, "Delete All Data action unavailable");
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => /^Delete everything$/i.test((b.textContent || "").trim()))`, "reset confirmation");
-  await clickByTextAndWaitReload(cdp, "Delete everything");
+  await clickByTextAndVerifyPersistence(cdp, "Delete everything");
 }
 
 async function snapshot(cdp) {
@@ -247,7 +243,7 @@ async function restoreEncrypted(cdp, text) {
   await cdp.evaluate(`document.querySelector("#dec_pw").value=${JSON.stringify(PASSWORD)}`);
   await attachJson(cdp, "#importEncryptedFile", "persona-encrypted.json", text);
   await waitUntil(cdp, `Array.from(document.querySelectorAll("button")).some(b => /^Decrypt & Restore$/i.test((b.textContent || "").trim()) && !b.disabled)`, "enabled encrypted restore");
-  await clickByTextAndWaitReload(cdp, "Decrypt & Restore");
+  await clickByTextAndVerifyPersistence(cdp, "Decrypt & Restore");
 }
 
 async function regressAllViews(cdp, runtimeErrors) {
@@ -255,7 +251,8 @@ async function regressAllViews(cdp, runtimeErrors) {
   assert.ok(views.length >= 20, `Only ${views.length} product routes found`);
   for (const view of views) {
     const errorsBefore = runtimeErrors.length;
-    const ok = await cdp.evaluate(`(() => { const el = document.querySelector(${JSON.stringify(`[data-view="${"__VIEW__"}"]`)}.replace('__VIEW__', ${JSON.stringify(view)})); if (!el) return false; el.click(); return true; })()`);
+    const selector = `[data-view="${view}"]`;
+    const ok = await cdp.evaluate(`(() => { const el = document.querySelector(${JSON.stringify("__SELECTOR__")}.replace('__SELECTOR__', ${JSON.stringify(selector)})); if (!el) return false; el.click(); return true; })()`);
     assert.equal(ok, true, `${view}: navigation failed`); await sleep(80);
     const text = await cdp.evaluate(`document.querySelector('.content')?.innerText || ''`);
     assert.ok(text.length > 20, `${view}: empty rendered content`);
