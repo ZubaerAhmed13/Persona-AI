@@ -10837,6 +10837,9 @@ self.onmessage = function (e) {
     cancel.onclick = closeModal;
     go2.onclick = async () => {
       const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
+      // Normal backup restore intentionally clears session credentials.
+      SecretStore.clearApiKey();
+      if (parsed && parsed.settings) setSettings(importedSettings.settings);
       const snapshot = buildBackupPayload(getState().settings, getState().data);
       snapshot.reason = "pre-import-safety";
       const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
