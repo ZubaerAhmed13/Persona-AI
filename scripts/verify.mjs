@@ -73,9 +73,11 @@ for (const marker of [
   "prediction"
 ]) has(marker, `Regression marker missing: ${marker}`);
 
-// The deliverable must remain self-contained: no runtime JS/CSS assets are required.
+// The deliverable must remain self-contained: no runtime JS/CSS/service-worker assets are required.
 assert.equal(/<script[^>]+src\s*=\s*["'][^"']+["']/i.test(html), false, "External script dependency detected");
 assert.equal(/<link[^>]+rel\s*=\s*["']stylesheet["'][^>]+href\s*=\s*["'][^"']+["']/i.test(html), false, "External stylesheet dependency detected");
+lacks('navigator.serviceWorker.register("service-worker.js")', "Orphaned external service-worker dependency remains");
+has("Single-file build: no external service-worker asset is required or requested.", "Single-file service-worker policy marker missing");
 
 // Compile the inline scripts without executing DOM/storage code. This catches syntax damage from the deterministic patcher.
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
