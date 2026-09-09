@@ -165,6 +165,63 @@ function externalRequestsFrom(requestUrls) {
   });
 }
 
+async function verifyIndexedDbSecretScrub(cdp, label) {
+  const fixtureId = `persona-browser-secret-fixture-${label}`;
+  const inserted = await cdp.evaluate(`(async () => {
+    const db = await new Promise((resolve2, reject) => {
+      const request = indexedDB.open("persona-ai");
+      request.onsuccess = () => resolve2(request.result);
+      request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
+    });
+    try {
+      await new Promise((resolve2, reject) => {
+        const tx = db.transaction("people", "readwrite");
+        tx.objectStore("people").put({
+          id: ${JSON.stringify(fixtureId)},
+          name: "Browser Legacy Secret Fixture",
+          providerToken: ${JSON.stringify(TEST_SECRET)},
+          createdAt: "2026-09-09T00:00:00.000Z",
+          updatedAt: "2026-09-09T00:00:00.000Z",
+          schemaVersion: 7
+        });
+        tx.oncomplete = () => resolve2(true);
+        tx.onerror = () => reject(tx.error || new Error("Fixture write failed"));
+        tx.onabort = () => reject(tx.error || new Error("Fixture write aborted"));
+      });
+      return true;
+    } finally {
+      db.close();
+    }
+  })()`);
+  assert.equal(inserted, true, `${label}: could not seed legacy IndexedDB secret fixture`);
+
+  // A real application reload invokes loadAll(), which must sanitize the record and
+  // write the secret-free form back into IndexedDB rather than only cleaning memory.
+  await reload(cdp);
+
+  const stored = await cdp.evaluate(`(async () => {
+    const db = await new Promise((resolve2, reject) => {
+      const request = indexedDB.open("persona-ai");
+      request.onsuccess = () => resolve2(request.result);
+      request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
+    });
+    try {
+      return await new Promise((resolve2, reject) => {
+        const tx = db.transaction("people", "readonly");
+        const request = tx.objectStore("people").get(${JSON.stringify(fixtureId)});
+        request.onsuccess = () => resolve2(request.result || null);
+        request.onerror = () => reject(request.error || new Error("Fixture read failed"));
+      });
+    } finally {
+      db.close();
+    }
+  })()`);
+  assert.ok(stored, `${label}: IndexedDB fixture disappeared during scrub`);
+  assert.equal(stored.name, "Browser Legacy Secret Fixture", `${label}: benign IndexedDB data changed during scrub`);
+  assert.equal(Object.prototype.hasOwnProperty.call(stored, "providerToken"), false, `${label}: secret field remained in IndexedDB after reload`);
+  assert.equal(JSON.stringify(stored).includes(TEST_SECRET), false, `${label}: secret value remained in IndexedDB after reload`);
+}
+
 async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
   const bodyText = await cdp.evaluate("document.body ? document.body.innerText : ''");
   assert.ok(typeof bodyText === "string" && bodyText.length > 500, `${label}: application body did not render`);
@@ -197,8 +254,10 @@ async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
     assert.ok(dbResult.includes(store), `${label}: required IndexedDB store missing: ${store}`);
   }
 
-  // Local-mode startup must remain completely network-isolated before any provider UI change.
-  assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: local-mode startup made an external request`);
+  await verifyIndexedDbSecretScrub(cdp, label);
+
+  // Local-mode startup and the scrub reload must remain completely network-isolated.
+  assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: local-mode startup/scrub made an external request`);
 
   const settingsOpened = await cdp.evaluate(`(() => {
     const clickable = Array.from(document.querySelectorAll("button,a,[role='button'],[data-route]"));
@@ -327,7 +386,7 @@ try {
   await prepareApp(cdp);
   await verifyLoadedApp(cdp, "http-hosted", requestUrls, runtimeErrors);
 
-  console.log("browser-smoke: PASS (direct-file + HTTP-hosted, storage migration, IndexedDB schema, Settings security UX, local-mode startup network isolation, external-config disclosure without transmission)");
+  console.log("browser-smoke: PASS (direct-file + HTTP-hosted, legacy localStorage migration, real IndexedDB secret scrub persistence, Settings security UX, local-mode startup network isolation, external-config disclosure without transmission)");
 } finally {
   cdp?.close();
 
