@@ -107,10 +107,9 @@ async function navigate(cdp, url) {
 }
 
 async function reload(cdp) {
-  const marker = `manual-${Date.now()}-${Math.random()}`;
-  await cdp.evaluate(`window.__personaAcceptanceReloadMarker=${JSON.stringify(marker)}`);
+  const before = await cdp.evaluate("performance.timeOrigin");
   await cdp.send("Page.reload", { ignoreCache: true });
-  await waitUntil(cdp, `document.readyState === 'complete' && window.__personaAcceptanceReloadMarker !== ${JSON.stringify(marker)}`, "manual reload", 20000);
+  await waitUntil(cdp, `document.readyState === 'complete' && performance.timeOrigin !== ${JSON.stringify(before)}`, "manual reload", 20000);
   await sleep(300);
 }
 
@@ -127,15 +126,17 @@ async function clickByText(cdp, text) {
 }
 
 async function clickByTextAndWaitForProductReload(cdp, text) {
-  const marker = `product-${Date.now()}-${Math.random()}`;
-  await cdp.evaluate(`window.__personaAcceptanceProductMarker=${JSON.stringify(marker)}`);
+  const before = await cdp.evaluate("performance.timeOrigin");
   await clickByText(cdp, text);
-  await waitUntil(
-    cdp,
-    `document.readyState === 'complete' && window.__personaAcceptanceProductMarker !== ${JSON.stringify(marker)}`,
-    `${text} production reload`,
-    30000
-  );
+  try {
+    await waitUntil(cdp, `document.readyState === 'complete' && performance.timeOrigin !== ${JSON.stringify(before)}`, `${text} production reload`, 30000);
+  } catch (error) {
+    let diag = {};
+    try {
+      diag = await cdp.evaluate(`({ready:document.readyState, origin:performance.timeOrigin, modal:document.querySelector('#modalRoot')?.innerText||'', toasts:document.querySelector('#toastRoot')?.innerText||''})`);
+    } catch {}
+    throw new Error(`${error.message}; diagnostics=${JSON.stringify(diag)}`);
+  }
   await sleep(500);
 }
 
