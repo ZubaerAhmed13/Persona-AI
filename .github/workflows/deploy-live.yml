@@ -12,6 +12,7 @@ on:
       - main
     paths:
       - .github/workflows/deploy-live.yml
+      - .github/workflows/hardening.yml
       - scripts/live-pages-smoke.mjs
 
 permissions:
@@ -32,14 +33,56 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout certification source
-        uses: actions/checkout@v4
+      - name: Checkout certified source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
           fetch-depth: 0
 
+      - name: Verify certified source SHA
+        id: source
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HARDENING_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          checked_sha="$(git rev-parse HEAD)"
+          deploy=true
+
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            expected_sha="$HARDENING_HEAD_SHA"
+            if [ -z "$expected_sha" ] || [ "$checked_sha" != "$expected_sha" ]; then
+              echo "Deployment checkout mismatch: expected hardening SHA $expected_sha, checked out $checked_sha" >&2
+              exit 1
+            fi
+
+            git fetch --no-tags origin main
+            current_main="$(git rev-parse origin/main)"
+            if [ "$current_main" != "$expected_sha" ]; then
+              deploy=false
+              echo "Certified SHA $expected_sha has been superseded by current main $current_main; stale deployment will be skipped."
+            else
+              echo "Certified SHA $expected_sha is still current main."
+            fi
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            expected_sha="$PR_HEAD_SHA"
+            if [ -z "$expected_sha" ] || [ "$checked_sha" != "$expected_sha" ]; then
+              echo "PR checkout mismatch: expected $expected_sha, checked out $checked_sha" >&2
+              exit 1
+            fi
+            deploy=false
+          else
+            expected_sha="$checked_sha"
+            echo "Manual deployment pinned to checked-out main SHA $expected_sha."
+          fi
+
+          echo "sha=$expected_sha" >> "$GITHUB_OUTPUT"
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
 
@@ -48,19 +91,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ steps.source.outputs.sha }}"
           blob="$(git hash-object index.html)"
           bytes="$(wc -c < index.html | tr -d '[:space:]')"
           version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
           echo "blob=$blob" >> "$GITHUB_OUTPUT"
           echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Certified Persona AI $version: blob $blob, $bytes bytes"
+          echo "Certified Persona AI $version from source SHA ${{ steps.source.outputs.sha }}: blob $blob, $bytes bytes"
 
       - name: Validate deployment recipe on pull request
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
+          test "${{ steps.source.outputs.deploy }}" = "false"
           blob="${{ steps.artifact.outputs.blob }}"
           tree="$(printf '100644 blob %s\tindex.html\n' "$blob" | git mktree)"
           entries="$(git ls-tree "$tree" | wc -l | tr -d '[:space:]')"
@@ -68,14 +113,19 @@ jobs:
           test "$(git ls-tree "$tree" | awk '{print $4}')" = "index.html"
           test "$(git ls-tree "$tree" | awk '{print $3}')" = "$blob"
           node --check scripts/live-pages-smoke.mjs
-          echo "Deployment recipe validation: PASS"
+          echo "Deployment recipe validation: PASS for pinned source SHA ${{ steps.source.outputs.sha }}"
+
+      - name: Skip superseded certified deployment
+        if: github.event_name == 'workflow_run' && steps.source.outputs.deploy != 'true'
+        run: echo "No deployment performed because a newer main SHA superseded ${{ steps.source.outputs.sha }}."
 
       - name: Publish exact one-file gh-pages tree
         id: publish
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.source.outputs.deploy == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ steps.source.outputs.sha }}"
           git fetch origin gh-pages
           parent="$(git rev-parse origin/gh-pages)"
           blob="${{ steps.artifact.outputs.blob }}"
@@ -84,19 +134,19 @@ jobs:
           if [ "$tree" = "$current_tree" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "commit=$parent" >> "$GITHUB_OUTPUT"
-            echo "gh-pages already contains the certified one-file tree"
+            echo "gh-pages already contains the certified one-file tree for source SHA ${{ steps.source.outputs.sha }}"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          commit="$(printf 'deploy: publish Persona AI %s certified bundle\n' '${{ steps.artifact.outputs.version }}' | git commit-tree "$tree" -p "$parent")"
+          commit="$(printf 'deploy: publish Persona AI %s from certified SHA %s\n' '${{ steps.artifact.outputs.version }}' '${{ steps.source.outputs.sha }}' | git commit-tree "$tree" -p "$parent")"
           git push origin "$commit:refs/heads/gh-pages"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
-          echo "Published gh-pages commit $commit with tree $tree"
+          echo "Published gh-pages commit $commit with tree $tree from certified source SHA ${{ steps.source.outputs.sha }}"
 
       - name: Request GitHub Pages build
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.source.outputs.deploy == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -113,10 +163,10 @@ jobs:
             echo "GitHub Pages build request returned HTTP $status" >&2
             exit 1
           fi
-          echo "GitHub Pages build requested for ${{ steps.publish.outputs.commit }}"
+          echo "GitHub Pages build requested for ${{ steps.publish.outputs.commit }} from certified source SHA ${{ steps.source.outputs.sha }}"
 
       - name: Wait for exact certified bytes to be public
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.source.outputs.deploy == 'true'
         id: public
         env:
           EXPECTED_BLOB: ${{ steps.artifact.outputs.blob }}
@@ -127,14 +177,14 @@ jobs:
           base="https://zubaerahmed13.github.io/Persona-AI/"
           matched=false
           for attempt in $(seq 1 90); do
-            url="${base}?persona_deploy=${GITHUB_RUN_ID}&attempt=${attempt}"
+            url="${base}?persona_deploy=${GITHUB_RUN_ID}&source_sha=${{ steps.source.outputs.sha }}&attempt=${attempt}"
             if curl -fsSL -H 'Cache-Control: no-cache' "$url" -o /tmp/persona-live.html; then
               blob="$(git hash-object /tmp/persona-live.html)"
               bytes="$(wc -c < /tmp/persona-live.html | tr -d '[:space:]')"
               if [ "$blob" = "$EXPECTED_BLOB" ] && [ "$bytes" = "$EXPECTED_BYTES" ]; then
                 matched=true
                 echo "url=$url" >> "$GITHUB_OUTPUT"
-                echo "Public artifact identity matched on attempt $attempt"
+                echo "Public artifact identity matched certified source SHA ${{ steps.source.outputs.sha }} on attempt $attempt"
                 break
               fi
               echo "Waiting for public artifact: saw blob $blob ($bytes bytes)"
@@ -142,12 +192,12 @@ jobs:
             sleep 5
           done
           if [ "$matched" != "true" ]; then
-            echo "Live Pages never matched certified artifact $EXPECTED_BLOB ($EXPECTED_BYTES bytes)" >&2
+            echo "Live Pages never matched certified artifact $EXPECTED_BLOB ($EXPECTED_BYTES bytes) from source SHA ${{ steps.source.outputs.sha }}" >&2
             exit 1
           fi
 
       - name: Real Chrome smoke against deployed production
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.source.outputs.deploy == 'true'
         env:
           PERSONA_LIVE_URL: ${{ steps.public.outputs.url }}
           PERSONA_EXPECTED_VERSION: ${{ steps.artifact.outputs.version }}
