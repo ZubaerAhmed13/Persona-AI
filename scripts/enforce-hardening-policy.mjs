@@ -13,7 +13,9 @@ function replaceExactlyOnce(oldText, newText, label) {
 }
 
 // The safety backup must represent the state BEFORE imported settings/data are applied.
-const oldImportOrder = `      const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
+// Promise.all returns an array, so the storage/export modules must be array-destructured.
+const importDeps = `      const [{ db: db2 }, { exportJSON: exportJSON2 }] = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);`;
+const oldImportOrder = `${importDeps}
       // Normal backup restore intentionally clears session credentials.
       SecretStore.clearApiKey();
       if (parsed && parsed.settings) setSettings(importedSettings.settings);
@@ -21,7 +23,7 @@ const oldImportOrder = `      const { db: db2, exportJSON: exportJSON2 } = await
       snapshot.reason = "pre-import-safety";
       const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
       download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");`;
-const newImportOrder = `      const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
+const newImportOrder = `${importDeps}
       // Capture the current non-secret state before replacing settings or data.
       const snapshot = buildBackupPayload(getState().settings, getState().data);
       snapshot.reason = "pre-import-safety";
@@ -34,8 +36,8 @@ const newImportOrder = `      const { db: db2, exportJSON: exportJSON2 } = await
 if (html.includes(oldImportOrder)) {
   html = html.replace(oldImportOrder, newImportOrder);
 } else if (!html.includes(newImportOrder)) {
-  // Support a clean pre-hardening source if this build policy is reused from an older artifact.
-  const vanilla = `      const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
+  // Support the fixed dependency-loading form before the credential ordering policy is applied.
+  const vanilla = `${importDeps}
       const snapshot = buildBackupPayload(getState().settings, getState().data);
       snapshot.reason = "pre-import-safety";
       const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
