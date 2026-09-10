@@ -7,6 +7,12 @@ on:
     types:
       - completed
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/live-pages-smoke.yml
+      - scripts/live-pages-smoke.mjs
 
 permissions:
   contents: read
@@ -15,14 +21,15 @@ jobs:
   live-pages-smoke:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'gh-pages')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout main verification harness
+      - name: Checkout live verification harness
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -33,4 +40,6 @@ jobs:
         env:
           PERSONA_LIVE_URL: https://zubaerahmed13.github.io/Persona-AI/
           PERSONA_EXPECTED_VERSION: '3.1.1'
+          PERSONA_EXPECTED_BLOB_SHA: fc9d71ccba14d9c77a4216339e10e75d3a7c5d40
+          PERSONA_EXPECTED_BYTES: '863903'
         run: node scripts/live-pages-smoke.mjs
