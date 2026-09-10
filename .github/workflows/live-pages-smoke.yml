@@ -7,6 +7,12 @@ on:
     types:
       - completed
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/live-pages-smoke.yml
+      - scripts/live-pages-smoke.mjs
 
 permissions:
   contents: read
@@ -15,6 +21,7 @@ jobs:
   live-pages-smoke:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'gh-pages')
     runs-on: ubuntu-latest
     timeout-minutes: 10
