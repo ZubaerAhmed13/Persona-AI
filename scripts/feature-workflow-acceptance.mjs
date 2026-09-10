@@ -404,7 +404,7 @@ try {
   await action(cdp, "strategy");
   await wait(cdp, `!!document.querySelector("#st_go")`, "playbook strategy form");
   await click(cdp, "#st_go");
-  await wait(cdp, `(document.querySelector("#st_out")?.innerText || "").includes("Historically useful approach")`, "playbook strategy result", 15000);
+  await wait(cdp, `(document.querySelector("#st_out")?.innerText || "").toLowerCase().includes("historically useful approach")`, "playbook strategy result", 15000);
   await modalText(cdp, "Close");
 
   // Situation Intelligence: execute comparison, not just route rendering.
