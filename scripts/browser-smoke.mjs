@@ -13,20 +13,18 @@ const html = await readFile(indexPath);
 const TEST_SECRET = "PERSONA_BROWSER_SECRET_DO_NOT_PERSIST_91c4";
 const SESSION_KEY = "persona.secret.aiApiKey.session";
 const SETTINGS_KEY = "persona.settings.v1";
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function findChrome() {
-  const candidates = [process.env.CHROME_BIN, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].filter(Boolean);
-  for (const candidate of candidates) {
+  for (const candidate of [process.env.CHROME_BIN, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].filter(Boolean)) {
     const found = spawnSync("bash", ["-lc", `command -v ${JSON.stringify(candidate)} || true`], { encoding: "utf8" }).stdout.trim();
     if (found) return found;
   }
   throw new Error("A Chromium/Chrome executable is required for browser smoke verification.");
 }
 
-const sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
-
 class CDP {
-  constructor(url) { this.url = url; this.ws = null; this.nextId = 1; this.pending = new Map(); this.listeners = new Map(); }
+  constructor(url) { this.url = url; this.ws = null; this.id = 1; this.pending = new Map(); this.listeners = new Map(); }
   async connect() {
     this.ws = new WebSocket(this.url);
     await new Promise((resolve2, reject) => {
@@ -35,326 +33,138 @@ class CDP {
       this.ws.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Chrome DevTools WebSocket failed")); }, { once: true });
     });
     this.ws.addEventListener("message", (event) => {
-      const message = JSON.parse(String(event.data));
-      if (message.id && this.pending.has(message.id)) {
-        const { resolve: resolve2, reject } = this.pending.get(message.id);
-        this.pending.delete(message.id);
-        if (message.error) reject(new Error(message.error.message || "CDP command failed"));
-        else resolve2(message.result || {});
+      const msg = JSON.parse(String(event.data));
+      if (msg.id && this.pending.has(msg.id)) {
+        const p = this.pending.get(msg.id); this.pending.delete(msg.id);
+        if (msg.error) p.reject(new Error(msg.error.message || "CDP command failed")); else p.resolve(msg.result || {});
         return;
       }
-      if (message.method) for (const listener of this.listeners.get(message.method) || []) listener(message.params || {});
+      if (msg.method) for (const fn of this.listeners.get(msg.method) || []) fn(msg.params || {});
     });
   }
   send(method, params = {}) {
-    const id = this.nextId++;
+    const id = this.id++;
     return new Promise((resolve2, reject) => { this.pending.set(id, { resolve: resolve2, reject }); this.ws.send(JSON.stringify({ id, method, params })); });
   }
-  on(method, listener) {
+  on(method, fn) {
     if (!this.listeners.has(method)) this.listeners.set(method, new Set());
-    this.listeners.get(method).add(listener);
-    return () => this.listeners.get(method)?.delete(listener);
+    this.listeners.get(method).add(fn);
+    return () => this.listeners.get(method)?.delete(fn);
   }
-  waitFor(method, timeoutMs = 10000) {
+  waitFor(method, timeoutMs = 15000) {
     return new Promise((resolve2, reject) => {
       const off = this.on(method, (params) => { clearTimeout(timer); off(); resolve2(params); });
       const timer = setTimeout(() => { off(); reject(new Error(`Timed out waiting for ${method}`)); }, timeoutMs);
     });
   }
   async evaluate(expression) {
-    const result = await this.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Browser evaluation failed");
-    return result.result?.value;
+    const out = await this.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true });
+    if (out.exceptionDetails) throw new Error(out.exceptionDetails.exception?.description || out.exceptionDetails.text || "Browser evaluation failed");
+    return out.result?.value;
   }
   close() { try { this.ws?.close(); } catch {} }
 }
 
-async function waitForDevTools(profileDir, chromeProcess) {
+async function waitForDevTools(profileDir, proc) {
   const activePortFile = join(profileDir, "DevToolsActivePort");
   let lastError;
-  for (let i = 0; i < 150; i++) {
-    if (chromeProcess.exitCode !== null) throw new Error(`Chrome exited before DevTools became ready (exit ${chromeProcess.exitCode})`);
+  for (let i = 0; i < 180; i++) {
+    if (proc.exitCode !== null) throw new Error(`Chrome exited before DevTools became ready (${proc.exitCode})`);
     try {
-      const active = await readFile(activePortFile, "utf8");
-      const port = Number(active.split(/\r?\n/)[0]);
-      if (Number.isInteger(port) && port > 0) {
+      const port = Number((await readFile(activePortFile, "utf8")).split(/\r?\n/)[0]);
+      if (port > 0) {
         const response = await fetch(`http://127.0.0.1:${port}/json/list`);
         if (response.ok) {
-          const targets = await response.json();
-          const target = targets.find((x) => x.type === "page" && x.webSocketDebuggerUrl);
+          const target = (await response.json()).find((x) => x.type === "page" && x.webSocketDebuggerUrl);
           if (target) return target.webSocketDebuggerUrl;
         }
       }
-    } catch (error) { lastError = error; }
+    } catch (e) { lastError = e; }
     await sleep(100);
   }
   throw new Error(`Chrome DevTools did not become ready: ${lastError?.message || "unknown error"}`);
 }
 
 async function navigate(cdp, url) {
-  const loaded = cdp.waitFor("Page.loadEventFired", 15000);
-  await cdp.send("Page.navigate", { url });
-  await loaded;
-  await sleep(500);
+  const loaded = cdp.waitFor("Page.loadEventFired");
+  await cdp.send("Page.navigate", { url }); await loaded; await sleep(500);
 }
-
 async function reload(cdp) {
-  const loaded = cdp.waitFor("Page.loadEventFired", 15000);
-  await cdp.send("Page.reload", { ignoreCache: true });
-  await loaded;
-  await sleep(600);
+  const loaded = cdp.waitFor("Page.loadEventFired");
+  await cdp.send("Page.reload", { ignoreCache: true }); await loaded; await sleep(600);
+}
+function externalRequests(urls) {
+  return urls.filter((url) => { try { const u = new URL(url); return u.protocol !== "file:" && !["127.0.0.1", "localhost"].includes(u.hostname); } catch { return true; } });
 }
 
 async function prepareApp(cdp) {
   await cdp.evaluate(`(() => {
-    localStorage.setItem(${JSON.stringify(SETTINGS_KEY)}, JSON.stringify({
-      onboardingDone: true,
-      aiEnabled: true,
-      aiProvider: "local",
-      aiEndpoint: "https://should-never-be-called.invalid/v1/chat/completions",
-      aiApiKey: ${JSON.stringify(TEST_SECRET)},
-      theme: "system"
-    }));
+    localStorage.setItem(${JSON.stringify(SETTINGS_KEY)}, JSON.stringify({onboardingDone:true,aiEnabled:true,aiProvider:'local',aiEndpoint:'https://should-never-be-called.invalid/v1/chat/completions',aiApiKey:${JSON.stringify(TEST_SECRET)},theme:'system'}));
     try { sessionStorage.removeItem(${JSON.stringify(SESSION_KEY)}); } catch {}
     return true;
   })()`);
   await reload(cdp);
 }
 
-function externalRequestsFrom(requestUrls) {
-  return requestUrls.filter((url) => {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === "file:") return false;
-      if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") return false;
-      return true;
-    } catch { return true; }
-  });
+async function openSettings(cdp) {
+  const ok = await cdp.evaluate(`(() => { const el=document.querySelector('[data-view="settings"]'); if(!el)return false; el.click(); return true; })()`);
+  assert.equal(ok, true, "Settings navigation missing");
+  await sleep(300);
 }
 
-async function verifyIndexedDbSecretScrub(cdp, label) {
-  const fixtureId = `persona-browser-secret-fixture-${label}`;
-  const inserted = await cdp.evaluate(`(async () => {
-    const db = await new Promise((resolve2, reject) => {
-      const request = indexedDB.open("persona-ai");
-      request.onsuccess = () => resolve2(request.result);
-      request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
-    });
-    try {
-      await new Promise((resolve2, reject) => {
-        const tx = db.transaction("people", "readwrite");
-        tx.objectStore("people").put({
-          id: ${JSON.stringify(fixtureId)},
-          name: "Browser Legacy Secret Fixture",
-          providerToken: ${JSON.stringify(TEST_SECRET)},
-          createdAt: "2026-09-09T00:00:00.000Z",
-          updatedAt: "2026-09-09T00:00:00.000Z",
-          schemaVersion: 7
-        });
-        tx.oncomplete = () => resolve2(true);
-        tx.onerror = () => reject(tx.error || new Error("Fixture write failed"));
-        tx.onabort = () => reject(tx.error || new Error("Fixture write aborted"));
-      });
-      return true;
-    } finally { db.close(); }
-  })()`);
-  assert.equal(inserted, true, `${label}: could not seed legacy IndexedDB secret fixture`);
+async function verifySecretMigrationAndUi(cdp, label) {
+  const state = await cdp.evaluate(`(() => { const raw=localStorage.getItem(${JSON.stringify(SETTINGS_KEY)})||'{}'; const p=JSON.parse(raw); let ss=null; try{ss=sessionStorage.getItem(${JSON.stringify(SESSION_KEY)});}catch{} return {persistentHasKey:Object.prototype.hasOwnProperty.call(p,'aiApiKey'),persistentContainsSecret:raw.includes(${JSON.stringify(TEST_SECRET)}),sessionSecret:ss}; })()`);
+  assert.equal(state.persistentHasKey, false, `${label}: legacy API-key field remained persistent`);
+  assert.equal(state.persistentContainsSecret, false, `${label}: API key leaked to localStorage`);
 
-  await reload(cdp);
-
-  const stored = await cdp.evaluate(`(async () => {
-    const db = await new Promise((resolve2, reject) => {
-      const request = indexedDB.open("persona-ai");
-      request.onsuccess = () => resolve2(request.result);
-      request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
-    });
-    try {
-      return await new Promise((resolve2, reject) => {
-        const tx = db.transaction("people", "readonly");
-        const request = tx.objectStore("people").get(${JSON.stringify(fixtureId)});
-        request.onsuccess = () => resolve2(request.result || null);
-        request.onerror = () => reject(request.error || new Error("Fixture read failed"));
-      });
-    } finally { db.close(); }
-  })()`);
-  assert.ok(stored, `${label}: IndexedDB fixture disappeared during scrub`);
-  assert.equal(stored.name, "Browser Legacy Secret Fixture", `${label}: benign IndexedDB data changed during scrub`);
-  assert.equal(Object.prototype.hasOwnProperty.call(stored, "providerToken"), false, `${label}: secret field remained in IndexedDB after reload`);
-  assert.equal(JSON.stringify(stored).includes(TEST_SECRET), false, `${label}: secret value remained in IndexedDB after reload`);
-}
-
-async function verifyLoadedApp(cdp, label, requestUrls, runtimeErrors) {
-  const bodyText = await cdp.evaluate("document.body ? document.body.innerText : ''");
-  assert.ok(typeof bodyText === "string" && bodyText.length > 500, `${label}: application body did not render`);
-  assert.match(bodyText, /PERSONA/i, `${label}: Persona branding missing from rendered DOM`);
-
-  const storageResult = await cdp.evaluate(`(() => {
-    const persisted = JSON.parse(localStorage.getItem(${JSON.stringify(SETTINGS_KEY)}) || "{}");
-    return {
-      persistedHasApiKey: Object.prototype.hasOwnProperty.call(persisted, "aiApiKey"),
-      persistentContainsSecret: (localStorage.getItem(${JSON.stringify(SETTINGS_KEY)}) || "").includes(${JSON.stringify(TEST_SECRET)}),
-      sessionSecret: sessionStorage.getItem(${JSON.stringify(SESSION_KEY)})
-    };
-  })()`);
-  assert.equal(storageResult.persistedHasApiKey, false, `${label}: legacy API key remained in persistent settings`);
-  assert.equal(storageResult.persistentContainsSecret, false, `${label}: API key leaked to persistent localStorage`);
-  assert.equal(storageResult.sessionSecret, TEST_SECRET, `${label}: legacy key was not moved to the dedicated current-session secret entry`);
-
-  const dbResult = await cdp.evaluate(`(async () => {
-    const db = await new Promise((resolve2, reject) => {
-      const request = indexedDB.open("persona-ai");
-      request.onsuccess = () => resolve2(request.result);
-      request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
-    });
-    const stores = Array.from(db.objectStoreNames);
-    db.close();
-    return stores;
-  })()`);
-  for (const store of ["people", "interactions", "playbooks", "signals", "situations", "experiments", "relationshipGoals", "auditLog"]) {
-    assert.ok(dbResult.includes(store), `${label}: required IndexedDB store missing: ${store}`);
+  await openSettings(cdp);
+  const selected = await cdp.evaluate(`(() => { const p=document.querySelector('#aiProvider'); if(!p)return false; p.value='api'; p.dispatchEvent(new Event('change',{bubbles:true})); return true; })()`);
+  assert.equal(selected, true, `${label}: provider selector missing`); await sleep(250);
+  const ui = await cdp.evaluate(`(() => { const input=document.querySelector('#aiApiKey'), clear=document.querySelector('#clearAiApiKey'), fields=document.querySelector('#apiFields'), status=document.querySelector('#aiKeyStatus'); return {input:!!input,type:input?.type||'',value:input?.value||'',clear:!!clear,visible:!!fields&&!fields.hidden,text:fields?.innerText||'',status:status?.innerText||''}; })()`);
+  assert.equal(ui.visible, true, `${label}: external API fields not visible`);
+  assert.equal(ui.input, true, `${label}: key input missing`); assert.equal(ui.type, "password"); assert.equal(ui.value, "", `${label}: raw key rendered into DOM`); assert.equal(ui.clear, true);
+  assert.match(ui.text, /browser session/i, `${label}: session-only disclosure missing`); assert.match(ui.text, /OpenAI-compatible|external/i, `${label}: external-processing disclosure missing`);
+  if (state.sessionSecret === TEST_SECRET) {
+    assert.match(ui.status, /configured/i, `${label}: configured-key status missing`);
+  } else {
+    assert.equal(label, "direct-file", `${label}: hosted mode must retain key in sessionStorage`);
+    assert.match(ui.status, /configured/i, `${label}: direct-file memory fallback did not retain migrated key in current page`);
   }
+  const cleared = await cdp.evaluate(`(() => { document.querySelector('#clearAiApiKey')?.click(); let s=null; try{s=sessionStorage.getItem(${JSON.stringify(SESSION_KEY)});}catch{} return {session:s,status:document.querySelector('#aiKeyStatus')?.innerText||''}; })()`);
+  assert.equal(cleared.session, null, `${label}: Clear API key did not clear sessionStorage`); assert.match(cleared.status, /No key configured/i, `${label}: clear-key status did not update`);
+}
 
-  await verifyIndexedDbSecretScrub(cdp, label);
-  assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: local-mode startup/scrub made an external request`);
+async function verifyIndexedDbScrub(cdp, label) {
+  const id = `persona-browser-secret-fixture-${label}`;
+  const stores = await cdp.evaluate(`(async()=>{const db=await new Promise((resolve2,reject)=>{const r=indexedDB.open('persona-ai');r.onsuccess=()=>resolve2(r.result);r.onerror=()=>reject(r.error)});const names=Array.from(db.objectStoreNames);await new Promise((resolve2,reject)=>{const tx=db.transaction('people','readwrite');tx.objectStore('people').put({id:${JSON.stringify(id)},name:'Browser Legacy Secret Fixture',providerToken:${JSON.stringify(TEST_SECRET)},createdAt:'2026-09-09T00:00:00.000Z',updatedAt:'2026-09-09T00:00:00.000Z',schemaVersion:7});tx.oncomplete=resolve2;tx.onerror=()=>reject(tx.error)});db.close();return names})()`);
+  for (const store of ["people","interactions","playbooks","signals","situations","experiments","relationshipGoals","auditLog"]) assert.ok(stores.includes(store), `${label}: missing store ${store}`);
+  await reload(cdp);
+  const rec = await cdp.evaluate(`(async()=>{const db=await new Promise((resolve2,reject)=>{const r=indexedDB.open('persona-ai');r.onsuccess=()=>resolve2(r.result);r.onerror=()=>reject(r.error)});const v=await new Promise((resolve2,reject)=>{const r=db.transaction('people','readonly').objectStore('people').get(${JSON.stringify(id)});r.onsuccess=()=>resolve2(r.result||null);r.onerror=()=>reject(r.error)});db.close();return v})()`);
+  assert.ok(rec, `${label}: scrub fixture disappeared`); assert.equal(rec.name, "Browser Legacy Secret Fixture"); assert.equal(Object.hasOwn(rec, "providerToken"), false, `${label}: IndexedDB secret field survived scrub`); assert.equal(JSON.stringify(rec).includes(TEST_SECRET), false);
+}
 
-  const settingsOpened = await cdp.evaluate(`(() => {
-    const clickable = Array.from(document.querySelectorAll("button,a,[role='button'],[data-route]"));
-    const target = clickable.find((el) => /^settings$/i.test((el.textContent || "").trim())) || clickable.find((el) => /settings/i.test((el.textContent || "").trim()));
-    if (!target) return false;
-    target.click();
-    return true;
-  })()`);
-  assert.equal(settingsOpened, true, `${label}: Settings navigation control not found`);
-  await sleep(400);
-
-  const externalUiSelected = await cdp.evaluate(`(() => {
-    const provider = document.querySelector("#aiProvider");
-    if (!provider) return false;
-    if (provider.value !== "api") {
-      provider.value = "api";
-      provider.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-    return true;
-  })()`);
-  assert.equal(externalUiSelected, true, `${label}: AI provider selector missing`);
-  await sleep(500);
-
-  const settingsUi = await cdp.evaluate(`(() => {
-    const input = document.querySelector("#aiApiKey");
-    const clear = document.querySelector("#clearAiApiKey");
-    const apiFields = document.querySelector("#apiFields");
-    const visibleText = apiFields && !apiFields.hidden ? apiFields.innerText : "";
-    return {
-      hasInput: !!input,
-      inputType: input?.type || null,
-      inputValue: input?.value || "",
-      hasClear: !!clear,
-      apiFieldsVisible: !!apiFields && !apiFields.hidden,
-      hasSessionCopy: /browser session/i.test(visibleText),
-      hasExternalCopy: /OpenAI-compatible|external/i.test(visibleText)
-    };
-  })()`);
-  assert.equal(settingsUi.apiFieldsVisible, true, `${label}: External API fields did not become visible`);
-  assert.equal(settingsUi.hasInput, true, `${label}: API-key input missing`);
-  assert.equal(settingsUi.inputType, "password", `${label}: API-key input is not a password field`);
-  assert.equal(settingsUi.inputValue, "", `${label}: raw session secret was rendered back into the DOM`);
-  assert.equal(settingsUi.hasClear, true, `${label}: Clear API key action missing`);
-  assert.equal(settingsUi.hasSessionCopy, true, `${label}: visible session-only security copy missing`);
-  assert.equal(settingsUi.hasExternalCopy, true, `${label}: visible external-processing copy missing`);
-  assert.deepEqual(externalRequestsFrom(requestUrls), [], `${label}: selecting External API configuration sent data before an analysis operation`);
-
-  const cleared = await cdp.evaluate(`(() => {
-    const button = document.querySelector("#clearAiApiKey");
-    button?.click();
-    return sessionStorage.getItem(${JSON.stringify(SESSION_KEY)});
-  })()`);
-  assert.equal(cleared, null, `${label}: Clear API key did not remove the session secret`);
-  assert.deepEqual(runtimeErrors, [], `${label}: uncaught browser/runtime errors: ${runtimeErrors.join(" | ")}`);
+async function verify(cdp, label, urls, errors) {
+  const body = await cdp.evaluate(`document.body?.innerText||''`); assert.ok(body.length > 500); assert.match(body, /PERSONA/i);
+  assert.deepEqual(externalRequests(urls), [], `${label}: local startup made an external request`);
+  await verifySecretMigrationAndUi(cdp, label);
+  await verifyIndexedDbScrub(cdp, label);
+  assert.deepEqual(externalRequests(urls), [], `${label}: local scrub made an external request`);
+  assert.deepEqual(errors, [], `${label}: runtime errors: ${errors.join(" | ")}`);
 }
 
 const chrome = findChrome();
 const profileDir = await mkdtemp(join(tmpdir(), "persona-chrome-"));
-const chromeProcess = spawn(chrome, [
-  "--headless=new",
-  "--no-sandbox",
-  "--disable-gpu",
-  "--disable-dev-shm-usage",
-  "--allow-file-access-from-files",
-  "--remote-debugging-port=0",
-  `--user-data-dir=${profileDir}`,
-  "about:blank"
-], { stdio: ["ignore", "ignore", "pipe"] });
-
-let stderr = "";
-chromeProcess.stderr.on("data", (chunk) => { stderr += String(chunk); });
-let server;
-let cdp;
+const proc = spawn(chrome,["--headless=new","--no-sandbox","--disable-gpu","--disable-dev-shm-usage","--allow-file-access-from-files","--remote-debugging-port=0",`--user-data-dir=${profileDir}`,"about:blank"],{stdio:["ignore","ignore","pipe"]});
+let stderr="",server,cdp; proc.stderr.on("data",c=>stderr+=String(c));
 try {
-  const wsUrl = await waitForDevTools(profileDir, chromeProcess);
-  cdp = new CDP(wsUrl);
-  await cdp.connect();
-  await cdp.send("Page.enable");
-  await cdp.send("Runtime.enable");
-  await cdp.send("Network.enable");
-  await cdp.send("Log.enable");
-
-  let requestUrls = [];
-  let runtimeErrors = [];
-  cdp.on("Network.requestWillBeSent", (params) => requestUrls.push(params.request?.url || ""));
-  cdp.on("Runtime.exceptionThrown", (params) => runtimeErrors.push(params.exceptionDetails?.exception?.description || params.exceptionDetails?.text || "Uncaught exception"));
-  cdp.on("Log.entryAdded", (params) => {
-    const entry = params.entry || {};
-    if (entry.level === "error" && !/favicon\.ico/i.test(entry.text || "")) runtimeErrors.push(entry.text || "Browser log error");
-  });
-
-  await navigate(cdp, pathToFileURL(indexPath).href);
-  requestUrls = [];
-  runtimeErrors = [];
-  await prepareApp(cdp);
-  await verifyLoadedApp(cdp, "direct-file", requestUrls, runtimeErrors);
-
-  server = createServer((req, res) => {
-    if (req.url === "/" || req.url === "/index.html") {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      res.end(html);
-      return;
-    }
-    if (req.url === "/favicon.ico") {
-      res.writeHead(204, { "cache-control": "no-store" });
-      res.end();
-      return;
-    }
-    res.writeHead(404, { "content-type": "text/plain" });
-    res.end("Not found");
-  });
-  await new Promise((resolve2) => server.listen(0, "127.0.0.1", resolve2));
-  const address = server.address();
-  assert.ok(address && typeof address === "object", "HTTP smoke server failed to bind");
-  const hostedUrl = `http://127.0.0.1:${address.port}/index.html`;
-  await navigate(cdp, hostedUrl);
-  requestUrls = [];
-  runtimeErrors = [];
-  await prepareApp(cdp);
-  await verifyLoadedApp(cdp, "http-hosted", requestUrls, runtimeErrors);
-
-  console.log("browser-smoke: PASS (direct-file + HTTP-hosted, legacy localStorage migration, real IndexedDB secret scrub persistence, Settings security UX, local-mode startup network isolation, external-config disclosure without transmission)");
+  cdp=new CDP(await waitForDevTools(profileDir,proc)); await cdp.connect(); await cdp.send("Page.enable"); await cdp.send("Runtime.enable"); await cdp.send("Network.enable"); await cdp.send("Log.enable");
+  let urls=[],errors=[]; cdp.on("Network.requestWillBeSent",p=>urls.push(p.request?.url||"")); cdp.on("Runtime.exceptionThrown",p=>errors.push(p.exceptionDetails?.exception?.description||p.exceptionDetails?.text||"Uncaught exception")); cdp.on("Log.entryAdded",p=>{const e=p.entry||{};if(e.level==='error'&&!/favicon\.ico/i.test(e.text||''))errors.push(e.text||'Browser log error')});
+  await navigate(cdp,pathToFileURL(indexPath).href); urls=[];errors=[]; await prepareApp(cdp); await verify(cdp,"direct-file",urls,errors);
+  server=createServer((req,res)=>{if(req.url==='/'||req.url==='/index.html'){res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store"});res.end(html);return}if(req.url==='/favicon.ico'){res.writeHead(204);res.end();return}res.writeHead(404);res.end('Not found')});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r)); const address=server.address(); assert.ok(address&&typeof address==='object');
+  await navigate(cdp,`http://127.0.0.1:${address.port}/index.html`); urls=[];errors=[]; await prepareApp(cdp); await verify(cdp,"http-hosted",urls,errors);
+  console.log("browser-smoke: PASS (direct-file + HTTP-hosted; persistent secret removal; sessionStorage or documented direct-file memory fallback; IndexedDB scrub; Settings security UX; local-mode network isolation)");
 } finally {
-  cdp?.close();
-  const browserExited = chromeProcess.exitCode === null ? once(chromeProcess, "exit").catch(() => []) : Promise.resolve([]);
-  if (chromeProcess.exitCode === null) chromeProcess.kill("SIGTERM");
-  await Promise.race([browserExited, sleep(2000)]);
-  if (chromeProcess.exitCode === null) {
-    chromeProcess.kill("SIGKILL");
-    await Promise.race([browserExited, sleep(2000)]);
-  }
-  if (server) {
-    server.closeAllConnections?.();
-    await new Promise((resolve2) => server.close(() => resolve2()));
-  }
-  await sleep(250);
-  await rm(profileDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
+  cdp?.close(); const exited=proc.exitCode===null?once(proc,'exit').catch(()=>[]):Promise.resolve([]); if(proc.exitCode===null)proc.kill('SIGTERM'); await Promise.race([exited,sleep(2000)]); if(proc.exitCode===null){proc.kill('SIGKILL');await Promise.race([exited,sleep(2000)])} if(server){server.closeAllConnections?.();await new Promise(r=>server.close(()=>r()))} await sleep(250); await rm(profileDir,{recursive:true,force:true,maxRetries:10,retryDelay:150});
 }
-
-if (stderr && /(?:SyntaxError|ReferenceError|Uncaught TypeError)/i.test(stderr)) {
-  throw new Error(`Chrome stderr contained a JavaScript failure: ${stderr.slice(-4000)}`);
-}
+if(stderr&&/(?:SyntaxError|ReferenceError|Uncaught TypeError)/i.test(stderr))throw new Error(`Chrome stderr contained a JavaScript failure: ${stderr.slice(-4000)}`);

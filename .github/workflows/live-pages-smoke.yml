@@ -1,0 +1,36 @@
+name: Persona live Pages smoke
+
+on:
+  workflow_run:
+    workflows:
+      - pages build and deployment
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-pages-smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'gh-pages')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main verification harness
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Open deployed Persona AI in real Chrome
+        env:
+          PERSONA_LIVE_URL: https://zubaerahmed13.github.io/Persona-AI/
+          PERSONA_EXPECTED_VERSION: '3.1.1'
+        run: node scripts/live-pages-smoke.mjs

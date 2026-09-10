@@ -5541,7 +5541,7 @@ Evidence: ${JSON.stringify(ctx)}`);
       grid += `<line x1="${M.l}" y1="${y.toFixed(1)}" x2="${W - M.r}" y2="${y.toFixed(1)}" stroke="${c.grid}" stroke-width="1"/>`;
     }
     return `<figure class="chart-wrap" role="img" aria-label="${esc2(title)}">
-    <svg viewBox="0 0 ${W} ${H}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" font-family="Inter,sans-serif">
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="height:auto;display:block" xmlns="http://www.w3.org/2000/svg" font-family="Inter,sans-serif">
       ${grid}${bars}${xlabels}
     </svg>
     <figcaption class="chart-tip">${esc2(title)}. Units: ${unit || "count"}.</figcaption>
@@ -5611,7 +5611,7 @@ Evidence: ${JSON.stringify(ctx)}`);
       grid += `<line x1="${M.l}" y1="${y.toFixed(1)}" x2="${W - M.r}" y2="${y.toFixed(1)}" stroke="${c.grid}" stroke-width="1"/>`;
     }
     return `<figure class="chart-wrap" role="img" aria-label="${esc2(title)}">
-    <svg viewBox="0 0 ${W} ${H}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" font-family="Inter,sans-serif">
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="height:auto;display:block" xmlns="http://www.w3.org/2000/svg" font-family="Inter,sans-serif">
       ${grid}${area}${line}${dots}${xlabels}
     </svg>
     <figcaption class="chart-tip">${esc2(title)}. Max ${max}${unit}.</figcaption>
@@ -6457,7 +6457,7 @@ Evidence: ${JSON.stringify(ctx)}`);
   }
   function validateDataset(data) {
     const report = { people: 0, interactions: 0, observations: 0, predictions: 0, others: 0, errors: 0, sampleIssues: [] };
-    const count = (obj) => obj && typeof obj === "object" ? obj : {};
+    const importedPersonIds = new Set((Array.isArray(data && data.people) ? data.people : []).map((p) => p && p.id).filter(Boolean));
     Object.entries(data || {}).forEach(([store, list]) => {
       if (!Array.isArray(list)) return;
       if (store === "people") report.people += list.length;
@@ -6467,9 +6467,10 @@ Evidence: ${JSON.stringify(ctx)}`);
       else report.others += list.length;
       list.forEach((rec) => {
         const v = validateRecord(store, rec);
-        if (!v.valid) {
+        const errors = v.errors.filter((error) => !(error === "References a person that does not exist" && rec && rec.personId && importedPersonIds.has(rec.personId)));
+        if (errors.length) {
           report.errors++;
-          report.sampleIssues.push({ store, id: rec && rec.id, errors: v.errors.slice(0, 2) });
+          report.sampleIssues.push({ store, id: rec && rec.id, errors: errors.slice(0, 2) });
         }
       });
     });
@@ -9149,7 +9150,7 @@ self.onmessage = function (e) {
       return `<line x1="${cx}" y1="${cy}" x2="${nd.x}" y2="${nd.y}" stroke="var(--accent)" stroke-width="${width.toFixed(1)}" opacity="0.5"><title>${esc2(nd.name)}: ${count} interactions</title></line>`;
     }).join("");
     const nodes = pos.map((nd) => `<circle cx="${nd.x}" cy="${nd.y}" r="${10 + nd.interactions / Math.max(1, maxCount) * 4}" fill="${colorFor(nd.name)}" opacity="0.9"><title>${esc2(nd.name)} \u2014 ${nd.interactions} interactions</title></circle><text x="${nd.x}" y="${nd.y + 26}" text-anchor="middle" font-size="11" fill="var(--text-soft)">${esc2(nd.name)}</text>`).join("");
-    return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="auto" role="img" aria-label="Social network based on recorded interactions">${links}${nodes}</svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="height:auto;display:block" role="img" aria-label="Social network based on recorded interactions">${links}${nodes}</svg>`;
   }
   function relationshipOverview(p) {
     const indicators = allIndicators(p.id);
@@ -10847,7 +10848,7 @@ self.onmessage = function (e) {
     const m = openModal({ title: "Import Preview", subtitle: "Safe import", size: "modal-lg", body, footer: foot });
     cancel.onclick = closeModal;
     go2.onclick = async () => {
-      const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
+      const [{ db: db2 }, { exportJSON: exportJSON2 }] = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
       // Capture the current non-secret state before replacing settings or data.
       const snapshot = buildBackupPayload(getState().settings, getState().data);
       snapshot.reason = "pre-import-safety";
