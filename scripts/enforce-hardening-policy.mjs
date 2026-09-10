@@ -36,7 +36,6 @@ const newImportOrder = `${importDeps}
 if (html.includes(oldImportOrder)) {
   html = html.replace(oldImportOrder, newImportOrder);
 } else if (!html.includes(newImportOrder)) {
-  // Support the fixed dependency-loading form before the credential ordering policy is applied.
   const vanilla = `${importDeps}
       const snapshot = buildBackupPayload(getState().settings, getState().data);
       snapshot.reason = "pre-import-safety";
@@ -68,8 +67,6 @@ if (html.includes(resetTail)) {
 
 // Persona v3.1.1 remains a genuine single-file deliverable. The historical bundle still
 // attempted to register service-worker.js even though that asset is not shipped or deployed.
-// Under HTTP/GitHub Pages this caused a guaranteed 404 and a browser console error. Keep the
-// existing boot call stable, but make the registration hook intentionally dependency-free.
 const legacyServiceWorkerRegistration = `  function registerSW() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("service-worker.js").catch(() => {
@@ -85,5 +82,13 @@ if (html.includes(legacyServiceWorkerRegistration)) {
   throw new Error("single-file service worker policy: expected registration hook not found");
 }
 
+// SVG presentation attributes do not accept height="auto". Chrome logs a runtime parse
+// error each time those responsive charts render. Preserve responsive sizing via CSS instead.
+const invalidResponsiveSvg = /(<svg\b[^>]*\bwidth="100%") height="auto"/g;
+html = html.replace(invalidResponsiveSvg, '$1 style="height:auto;display:block"');
+if (/<svg\b[^>]*\bheight="auto"/.test(html)) {
+  throw new Error('responsive SVG policy: invalid height="auto" remains');
+}
+
 await writeFile(indexPath, html, "utf8");
-console.log("Enforced Persona restore/reset/single-file hardening policy");
+console.log("Enforced Persona restore/reset/single-file/browser-rendering hardening policy");
