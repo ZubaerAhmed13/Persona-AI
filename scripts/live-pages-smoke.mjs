@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,6 +8,8 @@ import { join } from "node:path";
 
 const LIVE_URL = process.env.PERSONA_LIVE_URL || "https://zubaerahmed13.github.io/Persona-AI/";
 const EXPECTED_VERSION = process.env.PERSONA_EXPECTED_VERSION || "3.1.1";
+const EXPECTED_BLOB_SHA = process.env.PERSONA_EXPECTED_BLOB_SHA || "";
+const EXPECTED_BYTES = Number(process.env.PERSONA_EXPECTED_BYTES || 0);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function findChrome() {
@@ -16,6 +19,13 @@ function findChrome() {
     if (found) return found;
   }
   throw new Error("A Chromium/Chrome executable is required for live Pages smoke verification.");
+}
+
+function gitBlobSha(bytes) {
+  return createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
+    .update(bytes)
+    .digest("hex");
 }
 
 class CDP {
@@ -83,6 +93,15 @@ async function waitForDevTools(profileDir, process) {
   throw new Error(`Chrome DevTools did not become ready: ${lastError?.message || "unknown error"}`);
 }
 
+const liveResponse = await fetch(LIVE_URL, { cache: "no-store", redirect: "follow" });
+assert.equal(liveResponse.ok, true, `Live Pages returned HTTP ${liveResponse.status}`);
+const liveBytes = Buffer.from(await liveResponse.arrayBuffer());
+const deployedBlobSha = gitBlobSha(liveBytes);
+if (EXPECTED_BYTES) assert.equal(liveBytes.length, EXPECTED_BYTES, `Live Pages byte size differs from certified index.html (${liveBytes.length} !== ${EXPECTED_BYTES})`);
+if (EXPECTED_BLOB_SHA) assert.equal(deployedBlobSha, EXPECTED_BLOB_SHA, `Live Pages Git blob differs from certified index.html (${deployedBlobSha} !== ${EXPECTED_BLOB_SHA})`);
+const liveSource = liveBytes.toString("utf8");
+assert.ok(liveSource.includes(`APP_VERSION = "${EXPECTED_VERSION}"`) || liveSource.includes(`APP_VERSION="${EXPECTED_VERSION}"`), `Live Pages source does not contain application version ${EXPECTED_VERSION}`);
+
 const chrome = findChrome();
 const profileDir = await mkdtemp(join(tmpdir(), "persona-live-pages-"));
 const chromeProcess = spawn(chrome, [
@@ -131,20 +150,18 @@ try {
     href: location.href,
     title: document.title,
     body: document.body?.innerText || "",
-    versionText: document.querySelector('.version')?.innerText || "",
     settingsNav: !!document.querySelector('[data-view="settings"]'),
     peopleNav: !!document.querySelector('[data-view="people"]')
   }))()`);
   assert.match(result.title, /PERSONA AI/i, "Live Pages document title is not Persona AI");
   assert.match(result.body, /PERSONA AI/i, "Live Pages application body did not render Persona AI");
   assert.ok(result.body.length > 500, "Live Pages rendered body is unexpectedly small");
-  assert.ok(result.versionText.includes(EXPECTED_VERSION) || result.body.includes(EXPECTED_VERSION), `Live Pages does not expose expected version ${EXPECTED_VERSION}`);
   assert.equal(result.settingsNav, true, "Live Pages Settings navigation is missing");
   assert.equal(result.peopleNav, true, "Live Pages People navigation is missing");
   assert.deepEqual(runtimeErrors, [], `Live Pages browser/runtime errors: ${runtimeErrors.join(" | ")}`);
   assert.deepEqual(failedRequests, [], `Live Pages network failures: ${failedRequests.join(" | ")}`);
   assert.deepEqual(badResponses, [], `Live Pages HTTP failures: ${badResponses.join(" | ")}`);
-  console.log(`live-pages-smoke: PASS (${LIVE_URL}, Persona AI ${EXPECTED_VERSION}, rendered Chrome session, no runtime/network failures)`);
+  console.log(`live-pages-smoke: PASS (${LIVE_URL}, Persona AI ${EXPECTED_VERSION}, blob ${deployedBlobSha}, ${liveBytes.length} bytes, rendered Chrome session, no runtime/network failures)`);
 } finally {
   cdp?.close();
   const exited = chromeProcess.exitCode === null ? once(chromeProcess, "exit").catch(() => []) : Promise.resolve([]);
