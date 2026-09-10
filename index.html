@@ -10148,7 +10148,7 @@ self.onmessage = function (e) {
     <div class="muted" style="font-size:.76rem">Learned ${fmtDate(m.date)}${m.lastConfirmed ? " \xB7 confirmed " + fmtDate(m.lastConfirmed) : ""}${m.reminderDate ? " \xB7 reminder " + fmtDate(m.reminderDate) : ""}</div>
     ${m.status !== "archived" ? `<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-sm btn-primary" data-action="confirmMemory" data-arg="${m.id}">${icon("check", 13)} Confirm</button>
-      ${m.reminderDate && m.status !== "done" ? `<button class="btn btn-sm" data-action="completeMemory" data-arg="${m.id}">Check in</button>` : ""}
+      ${m.status !== "done" ? `<button class="btn btn-sm" data-action="completeMemory" data-arg="${m.id}">Mark remembered</button>` : ""}
       <button class="btn btn-sm" data-action="archiveMemory" data-arg="${m.id}">Archive</button>
     </div>` : ""}
   </div>`;
@@ -12682,13 +12682,13 @@ self.onmessage = function (e) {
   function tagInput(label, id, options, selected = []) {
     const sel = selected || [];
     return `<div class="field"><label>${label}</label>
-    <div class="tag-grid" data-taggroup="${id}">
+    <div class="tag-grid" id="${id}" data-taggroup="${id}">
       ${options.map((o) => `<button type="button" class="tag-opt ${sel.includes(o) ? "on" : ""}" data-tagopt="${esc2(o)}" data-group="${id}">${esc2(o)}</button>`).join("")}
       <input class="tag-input" placeholder="+ add custom tag" data-customtag="${id}">
     </div></div>`;
   }
   function bindTagGroup() {
-    root().querySelectorAll("[data-taggroup]").forEach((g) => {
+    document.querySelectorAll("[data-taggroup]").forEach((g) => {
       const id = g.getAttribute("data-taggroup");
       const getVals = () => [...g.querySelectorAll("[data-tagopt].on")].map((b) => b.getAttribute("data-tagopt"));
       g.querySelectorAll("[data-tagopt]").forEach((b) => b.addEventListener("click", () => b.classList.toggle("on")));
