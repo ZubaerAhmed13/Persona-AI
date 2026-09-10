@@ -40,4 +40,6 @@ jobs:
         env:
           PERSONA_LIVE_URL: https://zubaerahmed13.github.io/Persona-AI/
           PERSONA_EXPECTED_VERSION: '3.1.1'
+          PERSONA_EXPECTED_BLOB_SHA: fc9d71ccba14d9c77a4216339e10e75d3a7c5d40
+          PERSONA_EXPECTED_BYTES: '863903'
         run: node scripts/live-pages-smoke.mjs
