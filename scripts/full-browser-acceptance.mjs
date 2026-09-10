@@ -125,6 +125,20 @@ async function clickByText(cdp, text) {
   assert.equal(ok, true, `Control not found: ${text}`);
 }
 
+async function clickModalByText(cdp, text) {
+  const ok = await cdp.evaluate(`(() => {
+    const wanted = ${JSON.stringify(text.toLowerCase())};
+    const root = document.querySelector('#modalRoot');
+    if (!root) return false;
+    const el = Array.from(root.querySelectorAll("button,a,[role='button']"))
+      .find((x) => (x.textContent || "").trim().toLowerCase() === wanted);
+    if (!el) return false;
+    el.click();
+    return true;
+  })()`);
+  assert.equal(ok, true, `Modal control not found: ${text}`);
+}
+
 async function clickByTextAndWaitForProductReload(cdp, text) {
   const before = await cdp.evaluate("performance.timeOrigin");
   await clickByText(cdp, text);
@@ -345,8 +359,8 @@ async function runCoreCrudWorkflow(cdp) {
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
   await waitUntil(cdp, `!!document.querySelector('#pf_name')`, "person form");
   await cdp.evaluate(`(() => { document.querySelector('#pf_name').value=${JSON.stringify(WORKFLOW_PERSON)}; const rel=document.querySelector('#pf_rel'); if(rel)rel.value='Friend'; return true; })()`);
-  await clickByText(cdp, "Add person");
-  await waitUntil(cdp, `Array.from(document.querySelectorAll('.person-name,.strong')).some(x => (x.textContent||'').includes(${JSON.stringify(WORKFLOW_PERSON)}))`, "created person rendered");
+  await clickModalByText(cdp, "Add person");
+  await waitUntil(cdp, `(document.querySelector('#view')?.innerText||'').includes(${JSON.stringify(WORKFLOW_PERSON)})`, "created person rendered");
   const db = await snapshot(cdp);
   assert.ok(db.people.some((p) => p.name === WORKFLOW_PERSON), "Core CRUD workflow did not persist the created person");
 
