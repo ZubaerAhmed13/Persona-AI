@@ -31,6 +31,18 @@ jobs:
       - name: Build hardened self-contained application
         run: npm run build
 
+      - name: Require committed production bundle on main and PR
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- index.html; then
+            echo "::error::index.html does not match the production artifact generated from this exact commit. Run npm run build and commit index.html before merging or pushing to main."
+            git diff --stat -- index.html
+            exit 1
+          fi
+          echo "Committed index.html exactly matches the artifact generated from certified SHA $(git rev-parse HEAD)."
+
       - name: Run security and regression tests
         run: npm test
 
@@ -51,8 +63,8 @@ jobs:
       - name: Major feature workflow browser acceptance
         run: npm run test:features
 
-      - name: Commit generated index.html when changed
-        if: github.event_name == 'push'
+      - name: Commit generated index.html when changed on hardening branches
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
         shell: bash
         run: |
           if git diff --quiet -- index.html; then
