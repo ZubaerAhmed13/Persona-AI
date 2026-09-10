@@ -138,7 +138,8 @@ try {
   });
   cdp.on("Log.entryAdded", (p) => {
     const entry = p.entry || {};
-    if (entry.level === "error" && !/favicon\.ico/i.test(entry.text || "")) runtimeErrors.push(entry.text || "Browser console error");
+    const descriptor = `${entry.url || ""} ${entry.text || ""}`;
+    if (entry.level === "error" && !/favicon\.ico/i.test(descriptor)) runtimeErrors.push(descriptor.trim() || "Browser console error");
   });
 
   const loaded = cdp.waitFor("Page.loadEventFired", 30000);
