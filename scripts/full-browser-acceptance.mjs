@@ -140,8 +140,9 @@ async function clickByTextAndWaitForProductReload(cdp, text) {
 }
 
 async function openView(cdp, view, readySelector = ".page-title") {
+  const selector = `[data-view="${view}"]`;
   const ok = await cdp.evaluate(`(() => {
-    const el = document.querySelector(${JSON.stringify(`[data-view="${view}"]`)});
+    const el = document.querySelector(${JSON.stringify(selector)});
     if (!el) return false;
     el.click();
     return true;
@@ -322,17 +323,14 @@ async function regressAllViews(cdp, runtimeErrors) {
   assert.ok(views.length >= 30, `Only ${views.length} product routes found`);
   for (const view of views) {
     const errorsBefore = runtimeErrors.length;
+    const selector = `[data-view="${view}"]`;
     const ok = await cdp.evaluate(`(() => {
-      const el = document.querySelector(${JSON.stringify("__SEL__")}.replace("__SEL__", ${JSON.stringify(`[data-view="${"${view}"}"]`)}));
-      return !!el;
-    })()`);
-    assert.equal(ok, true, `${view}: route missing`);
-    const clicked = await cdp.evaluate(`(() => {
-      const view=${JSON.stringify("__VIEW__")}.replace("__VIEW__", ${JSON.stringify("VIEW_PLACEHOLDER")});
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return false;
+      el.click();
       return true;
-    })()`).catch(() => true);
-    void clicked;
-    await cdp.evaluate(`document.querySelector('[data-view="${view}"]').click()`);
+    })()`);
+    assert.equal(ok, true, `${view}: navigation failed`);
     await sleep(100);
     const page = await cdp.evaluate(`({title:document.querySelector('.page-title')?.innerText||'', text:document.querySelector('#view')?.innerText||''})`);
     assert.ok(page.title.length > 0, `${view}: page title missing`);
