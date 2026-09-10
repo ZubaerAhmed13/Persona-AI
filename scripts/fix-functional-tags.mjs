@@ -33,5 +33,15 @@ replaceOnce(
   `document.querySelectorAll("[data-taggroup]").forEach((g) => {`
 );
 
+// The person profile already allows an active memory to be marked remembered even
+// without a reminder. Keep the dedicated Memories view consistent with that lifecycle.
+// A reminder date remains optional metadata rather than a prerequisite for completion.
+replaceOnce(
+  `      \${m.reminderDate && m.status !== "done" ? \`<button class="btn btn-sm" data-action="completeMemory" data-arg="\${m.id}">Check in</button>\` : ""}`,
+  `      \${m.status !== "done" ? \`<button class="btn btn-sm" data-action="completeMemory" data-arg="\${m.id}">Mark remembered</button>\` : ""}`,
+  "memory completion action consistency",
+  `\${m.status !== "done" ? \`<button class="btn btn-sm" data-action="completeMemory" data-arg="\${m.id}">Mark remembered</button>\` : ""}`
+);
+
 await writeFile(indexPath, html, "utf8");
-console.log("Applied Persona modal tag/context functional fix");
+console.log("Applied Persona modal tag/context and memory lifecycle functional fixes");
