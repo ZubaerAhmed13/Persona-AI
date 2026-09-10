@@ -420,7 +420,7 @@ try {
   // Signal processing: the three UI-created Followed-through records must produce a derived signal.
   await openView(cdp, "signals");
   await wait(cdp, `document.querySelectorAll(".data-table tbody tr").length > 0`, "derived signal rows");
-  const signalText = await cdp.evaluate(`Array.from(document.querySelectorAll(".data-table tbody tr")).map(x=>x.innerText).join("\n")`);
+  const signalText = await cdp.evaluate(`Array.from(document.querySelectorAll(".data-table tbody tr")).map(x=>x.innerText).join("\\n")`);
   assert.match(signalText, /Prior similar follow-through/i, "Expected derived follow-through signal missing");
 
   assert.deepEqual(runtimeErrors, [], `Feature workflow runtime errors: ${runtimeErrors.join(" | ")}`);
