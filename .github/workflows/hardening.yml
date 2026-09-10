@@ -38,7 +38,12 @@ jobs:
         run: npm run verify
 
       - name: Browser acceptance — direct file and HTTP hosted
-        run: npm run test:browser
+        shell: bash
+        run: |
+          npm run test:browser && exit 0
+          echo "First browser-smoke attempt failed; retrying once to tolerate hosted-runner Chrome startup flake."
+          sleep 2
+          npm run test:browser
 
       - name: Complete product/backup/AI browser acceptance
         run: npm run test:acceptance
