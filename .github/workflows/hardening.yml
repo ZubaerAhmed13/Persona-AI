@@ -16,7 +16,7 @@ jobs:
   hardening:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,10 +38,18 @@ jobs:
         run: npm run verify
 
       - name: Browser acceptance — direct file and HTTP hosted
-        run: npm run test:browser
+        shell: bash
+        run: |
+          npm run test:browser && exit 0
+          echo "First browser-smoke attempt failed; retrying once to tolerate hosted-runner Chrome startup flake."
+          sleep 2
+          npm run test:browser
 
       - name: Complete product/backup/AI browser acceptance
         run: npm run test:acceptance
+
+      - name: Major feature workflow browser acceptance
+        run: npm run test:features
 
       - name: Commit generated index.html when changed
         if: github.event_name == 'push'

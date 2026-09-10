@@ -1,0 +1,156 @@
+name: Persona production deploy and live smoke
+
+on:
+  workflow_run:
+    workflows:
+      - Persona hardening verification
+    types:
+      - completed
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-live.yml
+      - scripts/live-pages-smoke.mjs
+
+permissions:
+  contents: write
+  pages: write
+  actions: read
+
+concurrency:
+  group: persona-production-deployment
+  cancel-in-progress: true
+
+jobs:
+  deploy-live:
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout certification source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Calculate certified production identity
+        id: artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          blob="$(git hash-object index.html)"
+          bytes="$(wc -c < index.html | tr -d '[:space:]')"
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          echo "blob=$blob" >> "$GITHUB_OUTPUT"
+          echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Certified Persona AI $version: blob $blob, $bytes bytes"
+
+      - name: Validate deployment recipe on pull request
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          blob="${{ steps.artifact.outputs.blob }}"
+          tree="$(printf '100644 blob %s\tindex.html\n' "$blob" | git mktree)"
+          entries="$(git ls-tree "$tree" | wc -l | tr -d '[:space:]')"
+          test "$entries" = "1"
+          test "$(git ls-tree "$tree" | awk '{print $4}')" = "index.html"
+          test "$(git ls-tree "$tree" | awk '{print $3}')" = "$blob"
+          node --check scripts/live-pages-smoke.mjs
+          echo "Deployment recipe validation: PASS"
+
+      - name: Publish exact one-file gh-pages tree
+        id: publish
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          parent="$(git rev-parse origin/gh-pages)"
+          blob="${{ steps.artifact.outputs.blob }}"
+          tree="$(printf '100644 blob %s\tindex.html\n' "$blob" | git mktree)"
+          current_tree="$(git rev-parse "$parent^{tree}")"
+          if [ "$tree" = "$current_tree" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "commit=$parent" >> "$GITHUB_OUTPUT"
+            echo "gh-pages already contains the certified one-file tree"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          commit="$(printf 'deploy: publish Persona AI %s certified bundle\n' '${{ steps.artifact.outputs.version }}' | git commit-tree "$tree" -p "$parent")"
+          git push origin "$commit:refs/heads/gh-pages"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "Published gh-pages commit $commit with tree $tree"
+
+      - name: Request GitHub Pages build
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS -o /tmp/pages-build.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages/builds")"
+          if [ "$status" != "201" ]; then
+            cat /tmp/pages-build.json || true
+            echo "GitHub Pages build request returned HTTP $status" >&2
+            exit 1
+          fi
+          echo "GitHub Pages build requested for ${{ steps.publish.outputs.commit }}"
+
+      - name: Wait for exact certified bytes to be public
+        if: github.event_name != 'pull_request'
+        id: public
+        env:
+          EXPECTED_BLOB: ${{ steps.artifact.outputs.blob }}
+          EXPECTED_BYTES: ${{ steps.artifact.outputs.bytes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://zubaerahmed13.github.io/Persona-AI/"
+          matched=false
+          for attempt in $(seq 1 90); do
+            url="${base}?persona_deploy=${GITHUB_RUN_ID}&attempt=${attempt}"
+            if curl -fsSL -H 'Cache-Control: no-cache' "$url" -o /tmp/persona-live.html; then
+              blob="$(git hash-object /tmp/persona-live.html)"
+              bytes="$(wc -c < /tmp/persona-live.html | tr -d '[:space:]')"
+              if [ "$blob" = "$EXPECTED_BLOB" ] && [ "$bytes" = "$EXPECTED_BYTES" ]; then
+                matched=true
+                echo "url=$url" >> "$GITHUB_OUTPUT"
+                echo "Public artifact identity matched on attempt $attempt"
+                break
+              fi
+              echo "Waiting for public artifact: saw blob $blob ($bytes bytes)"
+            fi
+            sleep 5
+          done
+          if [ "$matched" != "true" ]; then
+            echo "Live Pages never matched certified artifact $EXPECTED_BLOB ($EXPECTED_BYTES bytes)" >&2
+            exit 1
+          fi
+
+      - name: Real Chrome smoke against deployed production
+        if: github.event_name != 'pull_request'
+        env:
+          PERSONA_LIVE_URL: ${{ steps.public.outputs.url }}
+          PERSONA_EXPECTED_VERSION: ${{ steps.artifact.outputs.version }}
+          PERSONA_EXPECTED_BLOB_SHA: ${{ steps.artifact.outputs.blob }}
+          PERSONA_EXPECTED_BYTES: ${{ steps.artifact.outputs.bytes }}
+        run: node scripts/live-pages-smoke.mjs
