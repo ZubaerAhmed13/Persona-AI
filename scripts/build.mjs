@@ -16,6 +16,7 @@ import {
   openAICompatibleChat
 } from "../src/hardening/runtime.mjs";
 import { validatePersonaBackup, personaAtomicRestore, personaAtomicDeletePerson } from "../src/safety/data-safety.mjs";
+import { personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps } from "../src/ui/workspace.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -68,6 +69,22 @@ if (safetyRe.test(html)) {
 } else {
   replaceOnce("  // js/storage.js", safetyBlock + "\n\n  // js/storage.js", "inject Persona v4 safety runtime");
 }
+
+// Stage 2 UI remains a deterministic, offline-only build input.
+const workspaceCss = await readFile(resolve(root, "src/ui/workspace.css"), "utf8");
+const workspaceCssBlock = "\n/* PERSONA_V4_WORKSPACE_CSS_START */\n" +
+  workspaceCss.trimEnd() + "\n/* PERSONA_V4_WORKSPACE_CSS_END */\n";
+const workspaceCssRe = /\n\/\* PERSONA_V4_WORKSPACE_CSS_START \*\/[\s\S]*?\/\* PERSONA_V4_WORKSPACE_CSS_END \*\/\n/;
+if (workspaceCssRe.test(html)) html = html.replace(workspaceCssRe, workspaceCssBlock);
+else replaceOnce("</style>", workspaceCssBlock + "</style>", "inject Persona v4 workspace CSS");
+const workspaceFns = [personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps]
+  .map((fn) => fn.toString()).join("\n\n");
+const workspaceBlock = "  /* PERSONA_V4_WORKSPACE_RUNTIME_START */\n" +
+  workspaceFns.split("\n").map((line) => "  " + line).join("\n") +
+  "\n  /* PERSONA_V4_WORKSPACE_RUNTIME_END */";
+const workspaceRe = /  \/\* PERSONA_V4_WORKSPACE_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_V4_WORKSPACE_RUNTIME_END \*\//;
+if (workspaceRe.test(html)) html = html.replace(workspaceRe, workspaceBlock);
+else replaceOnce("  // js/storage.js", workspaceBlock + "\n\n  // js/storage.js", "inject Persona v4 workspace runtime");
 
 const runtimeRe = /  \/\* PERSONA_HARDENING_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_HARDENING_RUNTIME_END \*\//;
 if (runtimeRe.test(html)) {
