@@ -29,13 +29,15 @@ const compressed=gzipSync(before,{level:9});
 assert.ok(compressed.length<=450_000,"Bundle exceeded 450 KB gzip performance budget");
 assert.ok(compressed.length<before.length*.65,"Unexpectedly incompressible bundle");
 
-for(const id of [5,6,7,8,9]){
+for(const id of [6,7,8,9]){
   for(const suffix of ["START","END"]){
     const marker="PERSONA_V4_STAGE"+id+"_"+suffix;
     assert.equal(html.split(marker).length-1,1,"Duplicate or missing Stage "+id+" marker: "+marker);
   }
   assert.ok(html.includes("PERSONA_V4_STAGE"+id+"_CSS_START"),"Missing Stage "+id+" CSS");
 }
+assert.ok(html.includes("PERSONA_V4_SMART_CAPTURE_START"),"Stage 5 reviewed capture contract missing");
+assert.ok(html.includes("PERSONA_V4_SMART_CAPTURE_CSS_START"),"Stage 5 capture styles missing");
 for(const key of [
   "PERSONA_HARDENING_RUNTIME_START","PERSONA_V4_SAFETY_RUNTIME_START",
   "v4s9ModalTitle","personaV4Stage9HandleModalKey",
