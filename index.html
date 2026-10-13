@@ -13841,30 +13841,17 @@ self.onmessage = function (e) {
   </div>`;
   }
   async function askCopilotQuick() {
-    const input = document.getElementById("copQuickInput");
-    const q = input ? input.value.trim() : "";
-    if (!q) {
-      toast("Ask the Copilot something.", "warn");
-      return;
-    }
-    const pid = curPersonId();
-    const out = document.createElement("div");
-    out.style.marginTop = "12px";
-    out.innerHTML = aiThinking();
-    const container = input && input.closest(".card");
-    if (container) {
-      const old = container.querySelector(".copQuickOut");
-      if (old) old.remove();
-      out.className = "copQuickOut";
-      container.appendChild(out);
-    }
-    try {
-      const res = await copilotResponse(q, pid);
-      out.innerHTML = copilotFormatAnswer(res);
-      out.insertAdjacentHTML("beforeend", `<div style="margin-top:10px"><button class="link-btn" data-action="openCopilotWorkspace">Open full Copilot workspace \u2192</button></div>`);
-    } catch (e) {
-      out.innerHTML = `<p class="muted">Could not answer that.</p>`;
-    }
+    const input=document.getElementById("copQuickInput");
+    const q=String(input?.value||"").trim();
+    if(!q){toast("Ask a question about your recorded evidence.","warn");return;}
+    const container=input.closest(".card");
+    if(!container)return;
+    container.querySelector(".copQuickOut")?.remove();
+    const out=document.createElement("div");out.className="copQuickOut";out.style.marginTop="12px";
+    const result=personaV4LocalEvidenceAnswer(q,getState().data,curPersonId(),todayLocal());
+    out.innerHTML=personaV4Stage7AnswerHTML(result)+
+      '<div style="margin-top:10px"><button class="link-btn" data-action="openCopilotWorkspace">Open full Copilot workspace →</button></div>';
+    container.appendChild(out);
   }
   async function askCopilot() {
     personaV4Stage7AskLocal();
