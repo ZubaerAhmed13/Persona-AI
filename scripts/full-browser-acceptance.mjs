@@ -469,6 +469,27 @@ async function testV4Stage6Planning(cdp) {
   assert.equal(await cdp.evaluate('!!document.querySelector(".v4s6-panel")'),true,"Weekly planning summary missing");
 }
 
+async function testV4Stage7GroundedCopilot(cdp) {
+  await openView(cdp,"copilot");
+  await waitUntil(cdp,'!!document.querySelector("#v4s7EvidenceDesk")',"Stage 7 evidence desk");
+  const noPerson=await cdp.evaluate('(() => { const inp=document.querySelector("#copInput");inp.value="What did I promise?";document.querySelector(\'[data-action="askCopilot"]\').click();return document.querySelector("#copOut")?.textContent||"";})()');
+  assert.ok(noPerson.includes("Select a person"),"Local Copilot must not silently choose a person");
+  const selected=await cdp.evaluate('(() => {const el=document.querySelector("#contextPersonSelect");if(![...el.options].some(o=>o.value==="v31-person"))return false;el.value="v31-person";el.dispatchEvent(new Event("change",{bubbles:true}));return true;})()');
+  assert.equal(selected,true,"Historic person is missing from context");
+  await waitUntil(cdp,'!!document.querySelector("#v4s7EvidenceDesk")',"person-scoped evidence desk");
+  await cdp.evaluate('(() => {document.querySelector("#copInput").value="What did I promise?";document.querySelector(\'[data-action="askCopilot"]\').click();})()');
+  await waitUntil(cdp,'!!document.querySelector("#copOut .v4s7-answer")',"grounded local response");
+  const response=await cdp.evaluate('(() => ({txt:document.querySelector("#copOut")?.textContent||"",sources:document.querySelectorAll("#copOut [data-action=\\"v4EvidenceSource\\"]").length}))()');
+  assert.match(response.txt,/Local analysis/);
+  assert.ok(response.sources>0,"Person-scoped Copilot should cite stored commitments");
+  await cdp.evaluate('document.querySelector("#copOut [data-action=\\"v4EvidenceSource\\"]").click()');
+  await waitUntil(cdp,'(document.querySelector("#modalRoot")?.textContent||"").includes("Recorded source")',"source inspection modal");
+  await cdp.evaluate('(() => {const b=[...document.querySelectorAll("#modalRoot button")].find(x=>x.textContent.trim()==="Close");b?.click();})()');
+  await cdp.evaluate('document.querySelector(\'[data-action="v4ConversationBrief"]\').click()');
+  await waitUntil(cdp,'(document.querySelector("#copOut")?.textContent||"").includes("Conversation preparation")',"source-backed conversation brief");
+  assert.ok(await cdp.evaluate('document.querySelectorAll("#copOut [data-action=\\"v4EvidenceSource\\"]").length>0'));
+}
+
 async function runCoreCrudWorkflow(cdp) {
   await openView(cdp, "people");
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
@@ -793,6 +814,7 @@ try {
   await regressAllViews(cdp, runtimeErrors);
   await testV4Workspace(cdp);
   await testV4Stage6Planning(cdp);
+  await testV4Stage7GroundedCopilot(cdp);
   await testV4PeopleActivity(cdp);
   await runCoreCrudWorkflow(cdp);
   await testV4SmartCaptureAndContacts(cdp);
