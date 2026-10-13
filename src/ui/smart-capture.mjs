@@ -120,3 +120,78 @@ export function personaV4MountImportControls(view) {
   btn.dataset.action="importContactsCSV";btn.textContent="Import contacts CSV";
   actions.appendChild(btn);
 }
+
+export function personaV4OpenUniversalCapture() {
+  const people = peopleList();
+  const body = `<p class="muted">Describe one interaction in your own words. Persona suggests a person and tags locally, then you review every field. Nothing is saved before you confirm.</p>
+    <div class="field"><label for="v4captureText">What happened?</label><textarea id="v4captureText" class="textarea" maxlength="10000" placeholder="I spoke with Alex yesterday about the project…"></textarea></div>
+    <button id="v4captureReview" type="button" class="btn btn-primary">Review suggested record</button>
+    <div id="v4captureProposal" aria-live="polite" style="margin-top:12px"></div>`;
+  const cancel = document.createElement("button"); cancel.className="btn";cancel.textContent="Cancel";
+  const save = document.createElement("button"); save.className="btn btn-primary";save.textContent="Save reviewed interaction";save.disabled=true;
+  const footer=document.createElement("div");footer.append(cancel,save);
+  const modal = openModal({title:"Smart capture",subtitle:"Local suggestions · explicit review",size:"modal-lg",body,footer});
+  cancel.onclick=closeModal;
+  const input = modal.bodyEl.querySelector("#v4captureText");
+  const review = modal.bodyEl.querySelector("#v4captureReview");
+  const panel = modal.bodyEl.querySelector("#v4captureProposal");
+  let reviewed = "";
+  let duplicateApproval = "";
+  input.addEventListener("input", () => {reviewed="";save.disabled=true;save.textContent="Save reviewed interaction";panel.textContent="The note changed. Review the updated text before saving.";});
+  review.onclick = () => {
+    const text=input.value.trim();
+    if (!text) {toast("Describe what happened first.","warn");return;}
+    const suggestion=parseCapture(text);
+    const candidates=personaV4MentionedPeople(text,people);
+    const chosen = candidates.length===1 ? candidates[0].id : "";
+    const d=new Date();d.setDate(d.getDate()-(Number.isInteger(suggestion.dateOffset)?suggestion.dateOffset:0));
+    const day=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+    const labels=candidates.length>1?"Several people were mentioned. Select the right person.":candidates.length===0?"No person confidently matched. Select one below.":"One person matched by name. Please verify.";
+    panel.innerHTML=`<div class="card v4-capture-review">
+      <h3>Proposed interaction — review before saving</h3><p class="muted">${esc2(labels)} Suggested tags and event types are not facts.</p>
+      <div class="form-grid">
+        <div class="field"><label for="v4capturePerson">Person *</label><select id="v4capturePerson" class="select" required><option value="">Choose person…</option>${people.map(p=>`<option value="${esc2(p.id)}" ${p.id===chosen?"selected":""}>${esc2(p.name)}</option>`).join("")}</select></div>
+        <div class="field"><label for="v4captureDate">Interaction date *</label><input type="date" id="v4captureDate" class="input" value="${esc2(day)}" required></div>
+      </div>
+      <div class="form-grid"><div class="field"><label for="v4captureType">Event type</label><input class="input" id="v4captureType" value="${esc2(suggestion.type)}" maxlength="120"></div>
+        <div class="field"><label for="v4captureInitiator">Who initiated?</label><select class="select" id="v4captureInitiator">${["Unclear","Me","Them","Mutual"].map(v=>`<option ${suggestion.initiator===v?"selected":""}>${v}</option>`).join("")}</select></div></div>
+      <div class="field"><label for="v4captureObserved">What I actually observed *</label><textarea id="v4captureObserved" class="textarea" maxlength="10000" required>${esc2(text)}</textarea></div>
+      <div class="field"><label for="v4captureInterpretation">My interpretation (optional, not evidence)</label><textarea id="v4captureInterpretation" class="textarea" maxlength="3000" placeholder="Leave empty if you are unsure"></textarea></div>
+      <p class="muted">Suggested behaviors: ${suggestion.behaviors.map(esc2).join(", ") || "none"} · Context: ${suggestion.context.map(esc2).join(", ") || "unspecified"}</p>
+      <p id="v4captureDuplicateNotice" role="status" class="v4-capture-dup"></p></div>`;
+    reviewed=text;duplicateApproval="";save.disabled=!people.length;save.textContent="Save reviewed interaction";
+  };
+  save.onclick=async()=>{
+    if (!reviewed || input.value.trim()!==reviewed) {
+      toast("Review the current text before saving.","warn");save.disabled=true;return;
+    }
+    const personId=panel.querySelector("#v4capturePerson")?.value||"";
+    const day=panel.querySelector("#v4captureDate")?.value||"";
+    const observed=panel.querySelector("#v4captureObserved")?.value.trim()||"";
+    const type=panel.querySelector("#v4captureType")?.value.trim()||"Interaction";
+    const interpretation=panel.querySelector("#v4captureInterpretation")?.value.trim()||"";
+    if (!personId || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !observed) {
+      toast("Person, date and observed facts are required.","warn");return;
+    }
+    const signature=personId+"|"+day+"|"+personaV4NormalizeContact(observed);
+    const duplicates=personaV4InteractionDuplicates(personId,observed,day,getState().data.interactions);
+    if (duplicates.length && duplicateApproval!==signature) {
+      duplicateApproval=signature;
+      save.textContent="Save anyway (possible duplicate)";
+      panel.querySelector("#v4captureDuplicateNotice").textContent=
+        "Possible duplicate: an interaction with the same person, date and description already exists. Review it before choosing Save anyway.";
+      return;
+    }
+    save.disabled=true;
+    try {
+      const suggestion=parseCapture(reviewed);
+      await create("interactions",{
+        personId,date:day+"T12:00",initiator:panel.querySelector("#v4captureInitiator")?.value||"Unclear",
+        type,behaviorTags:suggestion.behaviors,context:suggestion.context,
+        observed,interpretation,interpretationConfidence:interpretation?"Low":"",
+        factOrInterpretation:"Fact",source:"reviewed local smart capture"
+      });
+      closeModal();toast("Reviewed interaction saved locally.","ok");renderCurrent();
+    } catch(e) {save.disabled=false;toast("Could not save the interaction: "+(e?.message||"unknown error"),"bad");}
+  };
+}
