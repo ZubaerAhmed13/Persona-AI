@@ -715,6 +715,30 @@ async function testLocalAnalysis(cdp, apiRequests, requestUrls) {
   await clickByText(cdp, "Cancel");
 }
 
+async function testV4Stage7ExternalConsent(cdp, apiRequests) {
+  const requestsBefore=apiRequests.length;
+  await openView(cdp,"dashboard");
+  const selected=await cdp.evaluate('(() => {const s=document.querySelector("#contextPersonSelect");if(![...s.options].some(o=>o.value==="v31-person"))return false;s.value="v31-person";s.dispatchEvent(new Event("change",{bubbles:true}));return true;})()');
+  assert.equal(selected,true,"Cannot select fixture person for external consent check");
+  await waitUntil(cdp,'!!document.querySelector("#copQuickInput")',"compact Copilot on Today");
+  await cdp.evaluate('(() => {document.querySelector("#copQuickInput").value="What did I promise?";document.querySelector(\'[data-action="askCopilotQuick"]\').click();})()');
+  await waitUntil(cdp,'(document.querySelector(".copQuickOut")?.textContent||"").includes("Local analysis")',"compact Copilot runs locally with provider configured");
+  assert.equal(apiRequests.length,requestsBefore,"Compact Copilot silently contacted configured external provider");
+
+  await openView(cdp,"copilot");
+  await cdp.evaluate('(() => {document.querySelector("#copInput").value="What did I promise?";document.querySelector(\'[data-action="askCopilot"]\').click();})()');
+  await waitUntil(cdp,'(document.querySelector("#copOut")?.textContent||"").includes("Local analysis")',"primary Copilot stays local with provider configured");
+  assert.equal(apiRequests.length,requestsBefore,"Primary Copilot silently contacted external provider");
+  await cdp.evaluate('document.querySelector(\'[data-action="v4ExternalCopilotReview"]\').click()');
+  await waitUntil(cdp,'!!document.querySelector("#v4s7Packet")',"preflight external context review");
+  const packet=await cdp.evaluate('document.querySelector("#v4s7Packet")?.value||""');
+  assert.match(packet,/"evidence"/);
+  assert.ok(packet.includes("v31-person"),"Approved context must identify the selected person");
+  assert.equal(apiRequests.length,requestsBefore,"Opening consent preview itself sent a request");
+  await cdp.evaluate('(() => {const b=[...document.querySelectorAll("#modalRoot button")].find(x=>x.textContent.includes("Keep it local"));b?.click();})()');
+  assert.equal(apiRequests.length,requestsBefore,"Declining provider consent still sent private data");
+}
+
 async function testExternalMock(cdp, hostedBase, apiRequests, consoleMessages) {
   await openSettings(cdp);
   const endpoint = hostedBase + "/v1/chat/completions";
@@ -830,6 +854,7 @@ try {
   assert.deepEqual(canonical(await snapshot(cdp)), normalBefore, "Full backup -> reset -> restore changed the database");
 
   await testExternalMock(cdp, hostedBase, apiRequests, consoleMessages);
+  await testV4Stage7ExternalConsent(cdp, apiRequests);
   const encryptedBefore = canonical(await snapshot(cdp));
   const encryptedText = await exportEncrypted(cdp);
   await resetUi(cdp);
