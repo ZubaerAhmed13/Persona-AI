@@ -42,3 +42,6 @@ Run `npm run check` (Node 20+ with Chrome/Chromium), then check a second `npm ru
 - CSV is a people-only additive importer, not replacement of the full data backup format.
 - Existing usernames/identifiers and the 33-store schema are unchanged.
 - Manual Safari/mobile screen-reader visual testing is still required beyond CI Chrome coverage.
+
+## Verification provenance
+The branch push verification completed successfully at [Actions run 38439876248](https://github.com/ZubaerAhmed13/Persona-AI/actions/runs/38439876248), including Node tests, full Chrome acceptance and major feature workflow tests. The generated offline production bundle was checked into this branch by the existing hardened build automation. An independent PR gate is required before merge.
