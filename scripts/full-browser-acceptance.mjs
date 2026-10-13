@@ -425,6 +425,50 @@ async function testV4SmartCaptureAndContacts(cdp) {
   assert.equal(records[0].source,"reviewed local smart capture","Smart Capture origin metadata missing");
 }
 
+async function testV4Stage6Planning(cdp) {
+  const seeded = await cdp.evaluate(`(async () => {
+    const db = await new Promise((resolve,reject)=>{ const req=indexedDB.open("persona-ai"); req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); });
+    try {
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(["followUps","commitments"],"readwrite");
+        tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);
+        tx.objectStore("followUps").put({id:"stage6-live-followup",personId:"v31-person",text:"Stage 6 overdue check-in",dueDate:"2026-10-11",status:"active",schemaVersion:7});
+        tx.objectStore("commitments").put({id:"stage6-legacy-commit",personId:"v31-person",description:"Stage 6 legacy dueDate promise",dueDate:"2026-10-11",completed:false,schemaVersion:7});
+      });
+    } finally { db.close(); }
+    return true;
+  })()`);
+  assert.equal(seeded,true);
+  await reload(cdp);
+  const nav = await cdp.evaluate('(() => { const b=document.querySelector(\'#v4PrimaryNav [data-v4-view="followups"]\'); if(!b)return false;b.click();return true;})()');
+  assert.equal(nav,true,"Stage 6 Follow-ups navigation unavailable");
+  await waitUntil(cdp,'!!document.querySelector(\'[data-action="v4SnoozeTask"][data-arg="stage6-live-followup"]\')',"Stage 6 due task row");
+  assert.match(await cdp.evaluate('document.querySelector("#view")?.textContent||""'),/Stage 6 overdue check-in/);
+  await cdp.evaluate('document.querySelector(\'[data-action="v4SnoozeTask"][data-arg="stage6-live-followup"][data-days="3"]\').click()');
+  await waitUntil(cdp,'!document.querySelector(\'[data-action="v4SnoozeTask"][data-arg="stage6-live-followup"]\')',"snoozed item leaves due category");
+  let snap=await snapshot(cdp);
+  const postponed=snap.followUps.find(x=>x.id==="stage6-live-followup");
+  assert.equal(postponed.status,"snoozed");
+  assert.ok(postponed.dueDate,"Snoozing must save a due date");
+  await cdp.evaluate('document.querySelector(\'[data-action="v4FollowUpTab"][data-arg="snoozed"]\').click()');
+  await waitUntil(cdp,'!!document.querySelector(\'[data-action="v4RescheduleTask"][data-arg="followUp|stage6-live-followup"]\')',"snoozed item review");
+  await cdp.evaluate('document.querySelector(\'[data-action="v4RescheduleTask"][data-arg="followUp|stage6-live-followup"]\').click()');
+  await waitUntil(cdp,'!!document.querySelector("#v4s6Date")',"Reschedule date picker");
+  const tomorrow=await cdp.evaluate('(() => {const now=new Date();now.setDate(now.getDate()+1);return [now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");})()');
+  await cdp.evaluate('(() => {document.querySelector("#v4s6Date").value=' + JSON.stringify(tomorrow) + ';const btn=[...document.querySelectorAll("#modalRoot button")].find(b=>b.textContent.includes("Save date"));btn.click();})()');
+  await waitUntil(cdp,'!document.querySelector("#v4s6Date")',"reschedule persisted");
+  snap=await snapshot(cdp);
+  const updated=snap.followUps.find(x=>x.id==="stage6-live-followup");
+  assert.equal(updated.dueDate.slice(0,10),tomorrow);
+  assert.equal(updated.status,"active");
+  await openView(cdp,"commitments");
+  await waitUntil(cdp,'!!document.querySelector(".v4s6-panel")',"commitment review planner");
+  const page=await cdp.evaluate('document.querySelector("#view")?.textContent||""');
+  assert.ok(page.includes("Stage 6 legacy dueDate promise"),"Legacy commitment dueDate was hidden from priorities");
+  await openView(cdp,"weekly");
+  assert.equal(await cdp.evaluate('!!document.querySelector(".v4s6-panel")'),true,"Weekly planning summary missing");
+}
+
 async function runCoreCrudWorkflow(cdp) {
   await openView(cdp, "people");
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
@@ -748,6 +792,7 @@ try {
 
   await regressAllViews(cdp, runtimeErrors);
   await testV4Workspace(cdp);
+  await testV4Stage6Planning(cdp);
   await testV4PeopleActivity(cdp);
   await runCoreCrudWorkflow(cdp);
   await testV4SmartCaptureAndContacts(cdp);
