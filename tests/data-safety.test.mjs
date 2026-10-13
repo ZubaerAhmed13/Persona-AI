@@ -80,6 +80,25 @@ function fakeDb(initial, { failPutAt = Infinity, failDelete = false } = {}) {
               if (failDelete) throw Error("Simulated deletion failure");
               staged[name].delete(id);
             },
+            openCursor() {
+              const ids = [...staged[name].keys()];
+              let index = 0;
+              const request = { onsuccess: null, result: null };
+              const advance = () => queueMicrotask(() => {
+                if (aborted) return;
+                const id = ids[index++];
+                const value = staged[name].get(id);
+                request.result = id === undefined ? null : {
+                  primaryKey: id,
+                  value: clone(value),
+                  delete() { staged[name].delete(id); },
+                  continue: advance
+                };
+                request.onsuccess?.();
+              });
+              advance();
+              return request;
+            },
             index(field) {
               assert.equal(field, "personId");
               return {
@@ -127,13 +146,17 @@ test("person deletion deletes primary key and every linked record, preserving un
   const db = fakeDb({
     people: [{ id: "p1", name: "One" }, { id: "p2", name: "Two" }],
     interactions: [{ id: "i1", personId: "p1" }, { id: "i2", personId: "p2" }],
-    auditLog: [{ id: "a", personId: "p1" }]
+    auditLog: [
+      { id: "a", personId: "p1" },
+      { id: "a2", store: "people", recordId: "p1" },
+      { id: "a3", store: "people", recordId: "p2" }
+    ]
   });
   await personaAtomicDeletePerson(db, ["people", "interactions", "auditLog"], "p1", keyRange);
   assert.deepEqual(db.present(), {
     people: [{ id: "p2", name: "Two" }],
     interactions: [{ id: "i2", personId: "p2" }],
-    auditLog: []
+    auditLog: [{ id: "a3", store: "people", recordId: "p2" }]
   });
 });
 test("failed person deletion aborts and keeps primary person + relationships intact", async () => {
