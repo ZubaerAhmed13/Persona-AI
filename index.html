@@ -1120,6 +1120,150 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   }
   /* PERSONA_HARDENING_RUNTIME_END */
 
+  /* PERSONA_V4_SAFETY_RUNTIME_START */
+  function validatePersonaBackup(parsed, knownStores, existingData = {}, schemaVersion = 7) {
+    const errors = [];
+    const plain = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+    if (!plain(parsed) || parsed.app !== "PERSONA AI") {
+      return { ok: false, errors: ["Not a recognized PERSONA AI backup."] };
+    }
+    if (!plain(parsed.data)) {
+      return { ok: false, errors: ["Backup data must be an object containing record arrays."] };
+    }
+    if (parsed.settings !== undefined && !plain(parsed.settings)) {
+      errors.push("Backup settings must be an object when present.");
+    }
+    if (parsed.schemaVersion !== undefined && (!Number.isInteger(parsed.schemaVersion) || parsed.schemaVersion < 1 || parsed.schemaVersion > schemaVersion)) {
+      errors.push("Backup schema version is invalid or newer than this application supports.");
+    }
+    // Legacy exports may have appVersion instead of version, or omit format metadata.
+    if (parsed.exportFormatVersion !== undefined) {
+      const n = Number(parsed.exportFormatVersion);
+      if (!Number.isFinite(n) || n <= 0 || n > 3.1) errors.push("Unsupported backup export format.");
+    }
+    const allowed = new Set(knownStores);
+    const incoming = Object.entries(parsed.data);
+    if (!incoming.length) errors.push("Backup has no data stores.");
+    for (const [name, records] of incoming) {
+      if (!allowed.has(name)) {
+        errors.push("Unknown data store: " + name);
+        continue;
+      }
+      if (!Array.isArray(records)) {
+        errors.push("Store " + name + " must be an array.");
+        continue;
+      }
+      const ids = new Set();
+      for (let i = 0; i < records.length; i++) {
+        const rec = records[i];
+        if (!plain(rec)) { errors.push(name + "[" + i + "] is not a record."); continue; }
+        const id = rec.id;
+        if (!((typeof id === "string" && id.length > 0) || (typeof id === "number" && Number.isFinite(id)))) {
+          errors.push(name + "[" + i + "] is missing a valid ID.");
+        } else if (ids.has(id)) {
+          errors.push("Duplicate ID in " + name + ": " + String(id));
+        } else ids.add(id);
+        if (rec.schemaVersion !== undefined && (!Number.isInteger(rec.schemaVersion) || rec.schemaVersion > schemaVersion || rec.schemaVersion < 1)) {
+          errors.push(name + "[" + i + "] requires an unsupported record schema.");
+        }
+        for (const key of ["createdAt", "updatedAt"]) {
+          if (rec[key] !== undefined && rec[key] !== null && (typeof rec[key] !== "string" || !Number.isFinite(Date.parse(rec[key])))) {
+            errors.push(name + "[" + i + "] has an invalid " + key + ".");
+          }
+        }
+        if (name === "people" && (typeof rec.name !== "string" || !rec.name.trim())) {
+          errors.push("Person " + String(id) + " requires a name.");
+        }
+      }
+    }
+    // Model the effective stores after a partial import. Other stores are preserved.
+    // All linked record references must still be valid after the proposed restore.
+    if (!errors.length) {
+      const effective = {};
+      for (const store of knownStores) {
+        effective[store] = Object.prototype.hasOwnProperty.call(parsed.data, store)
+          ? parsed.data[store]
+          : (Array.isArray(existingData?.[store]) ? existingData[store] : []);
+      }
+      const links = { personId: "people", playbookId: "playbooks", signalId: "signals", decisionId: "decisions" };
+      const keys = Object.fromEntries(Object.values(links).map((name) => [name, new Set(effective[name].map((r) => r?.id))]));
+      for (const [store, records] of Object.entries(effective)) {
+        for (const rec of records) {
+          if (!plain(rec)) continue;
+          for (const [field, target] of Object.entries(links)) {
+            if (store === "people" && field === "personId") continue;
+            if (rec[field] != null && rec[field] !== "" && !keys[target].has(rec[field])) {
+              errors.push(store + " record " + String(rec.id) + " has unresolved " + field + ".");
+              if (errors.length >= 30) break;
+            }
+          }
+          if (errors.length >= 30) break;
+        }
+        if (errors.length >= 30) break;
+      }
+    }
+    return { ok: errors.length === 0, errors };
+  }
+  
+  function personaAtomicRestore(dbConnection, data) {
+    const names = Object.keys(data);
+    return new Promise((resolve, reject) => {
+      if (!names.length) { reject(new Error("There are no stores to restore.")); return; }
+      let tx;
+      let settled = false;
+      const fail = (error) => {
+        if (settled) return;
+        settled = true;
+        reject(error || new Error("The restore transaction was aborted."));
+      };
+      try {
+        tx = dbConnection.transaction(names, "readwrite");
+        tx.oncomplete = () => { if (!settled) { settled = true; resolve(); } };
+        tx.onabort = () => fail(tx.error || new Error("The restore transaction was aborted. No records were replaced."));
+        for (const name of names) {
+          const store = tx.objectStore(name);
+          store.clear();
+          for (const record of data[name]) store.put(record);
+        }
+      } catch (error) {
+        try { tx?.abort(); } catch {}
+        fail(error);
+      }
+    });
+  }
+  
+  function personaAtomicDeletePerson(dbConnection, stores, personId, keyRangeFactory = IDBKeyRange) {
+    return new Promise((resolve, reject) => {
+      if (!personId) { reject(new Error("A person ID is required.")); return; }
+      let tx;
+      let settled = false;
+      const fail = (error) => {
+        if (!settled) { settled = true; reject(error || new Error("Person deletion was aborted.")); }
+      };
+      try {
+        tx = dbConnection.transaction(stores, "readwrite");
+        tx.oncomplete = () => { if (!settled) { settled = true; resolve(); } };
+        tx.onabort = () => fail(tx.error || new Error("Person deletion was aborted. No records were deleted."));
+        tx.objectStore("people").delete(personId);
+        for (const name of stores) {
+          if (name === "people") continue;
+          const store = tx.objectStore(name);
+          const request = store.index("personId").openKeyCursor(keyRangeFactory.only(personId));
+          request.onsuccess = () => {
+            const cursor = request.result;
+            if (!cursor) return;
+            store.delete(cursor.primaryKey);
+            cursor.continue();
+          };
+        }
+      } catch (error) {
+        try { tx?.abort(); } catch {}
+        fail(error);
+      }
+    });
+  }
+  /* PERSONA_V4_SAFETY_RUNTIME_END */
+
   // js/storage.js
   var storage_exports = {};
   __export(storage_exports, {
@@ -1414,6 +1558,12 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
         async getAllByPerson(store, personId) {
           const all = await this.getAll(store);
           return all.filter((x) => x.personId === personId);
+        },
+        async replaceStoresAtomically(data) {
+          return personaAtomicRestore(await openDb(), data);
+        },
+        async deletePersonGraphAtomically(personId) {
+          return personaAtomicDeletePerson(await openDb(), STORES, personId);
         },
         async put(store, record) {
           const os = await tx(store, "readwrite");
@@ -8092,23 +8242,29 @@ self.onmessage = function (e) {
     }, 8e3);
   }
   function deletePerson(id) {
-    Promise.resolve().then(() => (init_state(), state_exports)).then(async ({ remove: remove2, getState: getState2 }) => {
+    Promise.resolve().then(() => (init_state(), state_exports)).then(async ({ loadAll: loadAll2, getState: getState2 }) => {
       confirmDialog({
         title: "Delete person",
         danger: true,
         confirmText: "Delete person",
-        message: "This removes this person and ALL related observations, interactions, favors, commitments, and predictions from this device. Consider exporting first.",
+        message: "This permanently deletes this person and all records linked to them, including related audit history. Consider exporting a backup first.",
         onConfirm: async () => {
           const s = getState2();
-          const stores = ["people", "interactions", "observations", "favors", "commitments", "predictions", "preferences", "boundaryEvents", "conflictEvents", "supportEvents", "statements", "memories", "decisions", "followUps", "reminders", "surprises", "changeOfMinds", "monthlyReviews", "openLoops", "expectations", "debriefs", "lessons", "playbooks", "playbookHistory", "signals", "signalHistory", "situations", "experiments", "decisionOptions", "relationshipGoals"];
-          for (const st of stores) {
-            const list = s.data[st].filter((x) => x.personId === id);
-            for (const rec of list) await remove2(st, rec.id);
+          if (!s.data.people.some((p) => p.id === id)) {
+            toast("The person no longer exists.", "warn");
+            return;
           }
-          if (s.contextPersonId === id) s.contextPersonId = "all";
-          if (s.focusPersonId === id) s.focusPersonId = null;
-          toast("Person and related records removed.", "ok", "Deleted");
-          navigate("people");
+          try {
+            const { db: db2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+            await db2.deletePersonGraphAtomically(id);
+            await loadAll2();
+            if (s.contextPersonId === id) s.contextPersonId = "all";
+            if (s.focusPersonId === id) s.focusPersonId = null;
+            toast("Person and linked records permanently deleted.", "ok", "Deleted");
+            navigate("people");
+          } catch (error) {
+            showError("Person deletion failed. Changes from an aborted transaction were rolled back.", error);
+          }
         }
       });
     });
@@ -10746,6 +10902,21 @@ self.onmessage = function (e) {
       }
     };
   }
+  // Shared by plaintext and decrypted encrypted restores. A safety backup is
+  // initiated BEFORE any live storage changes. The IDB replacement is atomic;
+  // settings are applied only after the transaction commits successfully.
+  async function applyVerifiedBackup(parsed, data, importedSettings) {
+    const { db: db2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+    // Capture the current non-secret state before replacing settings or data.
+    const snapshot = buildBackupPayload(getState().settings, getState().data);
+    snapshot.reason = "pre-import-safety";
+    const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
+    download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");
+    await db2.replaceStoresAtomically(data);
+    // Credentials and settings are changed only when record transaction succeeded.
+    SecretStore.clearApiKey();
+    if (parsed && parsed.settings) setSettings(importedSettings.settings);
+  }
   function importEncrypted() {
     const fileInput = document.getElementById("importEncryptedFile");
     if (!fileInput) return;
@@ -10795,37 +10966,32 @@ self.onmessage = function (e) {
       }
       try {
         const parsed = await decryptBackupJSON(encData, pw);
+        const checked = validatePersonaBackup(parsed, STORES, getState().data, SCHEMA_VERSION);
+        if (!checked.ok) throw new Error("Incompatible backup: " + checked.errors.slice(0, 3).join(" "));
         const importedSettings = prepareImportedSettings(parsed && parsed.settings);
-        SecretStore.clearApiKey();
-        if (parsed && parsed.settings) setSettings(importedSettings.settings);
-        const { db: db2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
-        const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};
-        for (const store of Object.keys(data)) {
-          if (Array.isArray(data[store])) {
-            await db2.clear(store);
-            for (const rec of data[store]) await db2.put(store, rec);
-          }
-        }
+        const data = sanitizeSecretsDeep(parsed.data) || {};
+        await applyVerifiedBackup(parsed, data, importedSettings);
         toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed.", "ok", "Restore complete");
         closeModal();
         location.reload();
       } catch (e) {
-        showError("Could not decrypt this backup. The password may be wrong or the file may be corrupt. Your existing data has not been changed.", e);
+        showError("Could not restore this backup. The password, format, or imported records may be invalid. An unsuccessful IndexedDB transaction does not replace your existing records.", e);
       }
     };
   }
   async function safeImport(parsed) {
     const { detectSchema: detectSchema2, validateDataset: validateDataset2 } = validation_exports;
-    const schema = detectSchema2(parsed);
-    const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};
-    const importedSettings = prepareImportedSettings(parsed && parsed.settings);
-    const report = validateDataset2(data);
-    if (!schema.compatible || !Object.keys(data).length) {
-      toast("This file does not appear to be a valid PERSONA AI backup.", "bad", "Incompatible");
+    const checked = validatePersonaBackup(parsed, STORES, getState().data, SCHEMA_VERSION);
+    if (!checked.ok) {
+      toast("Backup rejected: " + checked.errors.slice(0, 2).join(" "), "bad", "Incompatible");
       return;
     }
+    const schema = detectSchema2(parsed);
+    const data = sanitizeSecretsDeep(parsed.data) || {};
+    const importedSettings = prepareImportedSettings(parsed && parsed.settings);
+    const report = validateDataset2(data);
     const body = `
-    <p class="muted">Review the import before applying. A safety backup of your current data is created automatically.</p>
+    <p class="muted">Review the import before applying. A safety backup of your current data is downloaded before any changes. If your browser blocks downloads, cancel and export a backup manually first.</p>
     <div class="metric-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
       ${metricCard("People", report.people, "", "records")}
       ${metricCard("Interactions", report.interactions, "", "records")}
@@ -10833,8 +10999,8 @@ self.onmessage = function (e) {
       ${metricCard("Predictions", report.predictions, "", "records")}
       ${metricCard("Other", report.others, "", "records")}
     </div>
-    <div class="ana-block" style="margin-top:12px"><div class="ab-label">Schema</div><p>${schema.compatible ? '<span class="badge badge-ok">Compatible</span>' : '<span class="badge badge-bad">Incompatible</span>'} \xB7 app version ${esc2(schema.appVersion)}</p></div>
-    <div class="ana-block"><div class="ab-label">Integrity</div><p>${report.errors ? '<span class="badge badge-bad">' + report.errors + " invalid record(s)</span>" : '<span class="badge badge-ok">\u2713 Validated</span>'}</p>
+    <div class="ana-block" style="margin-top:12px"><div class="ab-label">Schema</div><p><span class="badge badge-ok">Compatible</span> · app version ${esc2(schema.appVersion)}</p></div>
+    <div class="ana-block"><div class="ab-label">Integrity</div><p>${report.errors ? '<span class="badge badge-warn">' + report.errors + " existing validation warning(s)</span>" : '<span class="badge badge-ok">✓ Validated</span>'}</p>
       ${report.sampleIssues.length ? `<div class="list">${report.sampleIssues.slice(0, 4).map((x) => `<div class="list-item"><span class="tag badge-warn">${esc2(x.store)}</span><span class="muted" style="font-size:.78rem">${esc2((x.errors || []).join("; "))}</span></div>`).join("")}</div>` : ""}</div>`;
     const foot = document.createElement("div");
     const cancel = document.createElement("button");
@@ -10845,27 +11011,22 @@ self.onmessage = function (e) {
     go2.textContent = "Create safety backup & Import";
     foot.appendChild(cancel);
     foot.appendChild(go2);
-    const m = openModal({ title: "Import Preview", subtitle: "Safe import", size: "modal-lg", body, footer: foot });
+    const m = openModal({ title: "Import Preview", subtitle: "Validated atomic restore", size: "modal-lg", body, footer: foot });
     cancel.onclick = closeModal;
     go2.onclick = async () => {
-      const [{ db: db2 }, { exportJSON: exportJSON2 }] = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);
-      // Capture the current non-secret state before replacing settings or data.
-      const snapshot = buildBackupPayload(getState().settings, getState().data);
-      snapshot.reason = "pre-import-safety";
-      const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
-      download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");
-      // Normal backup restore intentionally clears session credentials.
-      SecretStore.clearApiKey();
-      if (parsed && parsed.settings) setSettings(importedSettings.settings);
-      for (const store of Object.keys(data)) {
-        if (Array.isArray(data[store])) {
-          await db2.clear(store);
-          for (const rec of data[store]) await db2.put(store, rec);
-        }
+      go2.disabled = true;
+      try {
+        // Recheck after preview: the shared state may have changed while open.
+        const latest = validatePersonaBackup(parsed, STORES, getState().data, SCHEMA_VERSION);
+        if (!latest.ok) throw new Error("Data changed since preview: " + latest.errors[0]);
+        await applyVerifiedBackup(parsed, data, importedSettings);
+        toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed. A safety backup was downloaded first.", "ok", "Import complete");
+        closeModal();
+        location.reload();
+      } catch (error) {
+        go2.disabled = false;
+        showError("Restore failed. The record transaction was rolled back; existing records remain available.", error);
       }
-      toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed. A safety backup was downloaded first.", "ok", "Import complete");
-      closeModal();
-      location.reload();
     };
   }
   function openAuditLog() {
