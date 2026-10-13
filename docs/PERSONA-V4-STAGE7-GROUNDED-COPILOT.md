@@ -45,3 +45,12 @@ The upgrade must pass `npm run check`, including `npm test`, static security ver
 After isolated branch success, open a PR; verify PR checks; merge; wait for separate main certification; confirm the live GitHub Pages deployment and exact-artifact smoke test. **Do not call Stage 7 deployed until that last check succeeds.**
 
 Manual Safari and screen-reader QA is an additional Stage 9/10 requirement, not replaced by Chrome automation.
+
+## Manual review checklist for release reviewers
+
+- Choose **All people**, ask about commitments, and verify that no person's information is silently selected.
+- Select a known contact and ask the same question; open two cited source records and check the excerpt and provenance.
+- Configure a test external provider, then use both full Copilot Ask and Today quick Ask; verify they remain local.
+- Open the external-context preview, verify exactly which question, person identifier/name and notes would be transmitted, then select **Keep it local** and verify that no API request occurs.
+- If a provider responds with an unknown evidence ID, confirm the answer is withheld rather than displaying an invented citation.
+- Restore an older encrypted backup and confirm that all established routes, imports, edits and reports still work.
