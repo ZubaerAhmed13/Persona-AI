@@ -83,7 +83,7 @@ test("agenda HTML includes working historical actions and escapes untrusted labe
     assert.match(html,/data-goto="followups"/);
     assert.match(html,/&lt;img src=x&gt;/);
     assert.match(html,/Person &amp; Friend/);
-    assert.match(html,/data-arg="id&amp;quot;/);
+    assert.match(html,/data-arg="id&quot;/);
     assert.doesNotMatch(html,/<img /);
     assert.doesNotMatch(html,/data-arg="id" onmouseover/);
   } finally {
