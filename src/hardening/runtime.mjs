@@ -26,7 +26,7 @@ export function sanitizePersistentSettings(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const out = {};
   for (const [key, value] of Object.entries(input)) {
-    if (!isSecretSettingKey(key)) out[key] = value;
+    if (!isSecretSettingKey(key) && !["__proto__", "constructor", "prototype"].includes(key)) out[key] = value;
   }
   return out;
 }
@@ -40,7 +40,7 @@ export function sanitizeSecretsDeep(value, seen = new WeakSet()) {
   }
   const out = {};
   for (const [key, child] of Object.entries(value)) {
-    if (isSecretSettingKey(key)) continue;
+    if (isSecretSettingKey(key) || ["__proto__", "constructor", "prototype"].includes(key)) continue;
     const safe = sanitizeSecretsDeep(child, seen);
     if (safe !== undefined) out[key] = safe;
   }
