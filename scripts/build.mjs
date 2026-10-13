@@ -17,6 +17,8 @@ import {
 } from "../src/hardening/runtime.mjs";
 import { validatePersonaBackup, personaAtomicRestore, personaAtomicDeletePerson } from "../src/safety/data-safety.mjs";
 import { personaV4IsFollowUpOpen, personaV4IsFollowUpDue, personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps } from "../src/ui/workspace.mjs";
+import { personaCalendarDay, personaAddCalendarDays, personaRecordClosed, personaFollowUpOpen, personaFollowUpDue, personaSelectTodayItems, personaSelectWeekAhead } from "../src/domain/today.mjs";
+import { personaRenderWeekAheadAgenda } from "../src/ui/agenda.mjs";
 import { repairPersonaLegacySchemas } from "../src/safety/migration.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -90,6 +92,27 @@ const workspaceBlock = "  /* PERSONA_V4_WORKSPACE_RUNTIME_START */\n" +
 const workspaceRe = /  \/\* PERSONA_V4_WORKSPACE_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_V4_WORKSPACE_RUNTIME_END \*\//;
 if (workspaceRe.test(html)) html = html.replace(workspaceRe, workspaceBlock);
 else replaceOnce("  // js/storage.js", workspaceBlock + "\n\n  // js/storage.js", "inject Persona v4 workspace runtime");
+
+// Stage 3 read-only domain facade and optional dashboard agenda. Neither
+// changes IndexedDB schema, existing action IDs, or legacy view dispatch.
+const todayFns = [
+  personaCalendarDay, personaAddCalendarDays, personaRecordClosed,
+  personaFollowUpOpen, personaFollowUpDue,
+  personaSelectTodayItems, personaSelectWeekAhead
+];
+const todayBlock = "  /* PERSONA_V4_TODAY_DOMAIN_START */\n" +
+  todayFns.map((fn) => fn.toString()).join("\n\n").split("\n").map((line) => "  " + line).join("\n") +
+  "\n  /* PERSONA_V4_TODAY_DOMAIN_END */";
+const todayRe = /  \/\* PERSONA_V4_TODAY_DOMAIN_START \*\/[\s\S]*?  \/\* PERSONA_V4_TODAY_DOMAIN_END \*\//;
+if (todayRe.test(html)) html = html.replace(todayRe, todayBlock);
+else replaceOnce("  // js/storage.js", todayBlock + "\n\n  // js/storage.js", "inject Persona v4 Today domain");
+
+const agendaBlock = "  /* PERSONA_V4_WEEK_AGENDA_START */\n" +
+  personaRenderWeekAheadAgenda.toString().split("\n").map((line) => "  " + line).join("\n") +
+  "\n  /* PERSONA_V4_WEEK_AGENDA_END */";
+const agendaRe = /  \/\* PERSONA_V4_WEEK_AGENDA_START \*\/[\s\S]*?  \/\* PERSONA_V4_WEEK_AGENDA_END \*\//;
+if (agendaRe.test(html)) html = html.replace(agendaRe, agendaBlock);
+else replaceOnce("  // js/storage.js", agendaBlock + "\n\n  // js/storage.js", "inject Persona v4 agenda renderer");
 
 const runtimeRe = /  \/\* PERSONA_HARDENING_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_HARDENING_RUNTIME_END \*\//;
 if (runtimeRe.test(html)) {
@@ -225,6 +248,11 @@ for (const patch of v4FollowupPatches) {
   if (occurrences !== patch.count) throw new Error("v4 reminder integration drift: " + patch.id + " (" + occurrences + ")");
   html = html.split(patch.oldText).join(patch.newText);
 }
+
+// Stage 3: replace only the exact historical Today selector. A failed exact
+// match means the old source changed and must be re-audited before release.
+replaceOnce("  function todayItems() {\n    const s = getState();\n    const out = [];\n    const now = /* @__PURE__ */ new Date();\n    const today = todayLocal();\n    s.data.commitments.forEach((c) => {\n      const due = (c.expectedCompletion || \"\").slice(0, 10);\n      if (c.completed || c.cancelled) return;\n      const overdue = due && due < today;\n      const dueToday = due === today;\n      if (overdue || dueToday) out.push({ kind: \"commitment\", personId: c.personId, text: c.commitment, due, overdue, id: c.id });\n    });\n    s.data.predictions.forEach((p) => {\n      if (!p.outcome || p.outcome === \"pending\") out.push({ kind: \"prediction\", personId: p.personId, text: p.predictionText || p.target || \"Prediction\", due: p.date, id: p.id });\n    });\n    s.data.followUps.forEach((f) => {\n      if (!personaV4IsFollowUpDue(f, today)) return;\n      const due = (f.dueDate || \"\").slice(0, 10);\n      out.push({ kind: \"followUp\", personId: f.personId, text: f.text, due, id: f.id });\n    });\n    s.data.memories.forEach((m) => {\n      if (m.reminderDate && (m.reminderDate.slice(0, 10) === today || m.reminderDate.slice(0, 10) < today) && m.status !== \"done\") {\n        out.push({ kind: \"memory\", personId: m.personId, text: m.info, due: m.reminderDate, id: m.id });\n      }\n    });\n    out.forEach((i) => {\n      if (!i.due) i.due = now.toISOString();\n    });\n    return sortBy(out, \"due\");\n  }\n", "  function todayItems() {\n    return personaSelectTodayItems(getState().data, todayLocal(), new Date().toISOString());\n  }\n", "extract Today read-only selector", "  function todayItems() {\n    return personaSelectTodayItems(getState().data, todayLocal(), new Date().toISOString());\n  }\n");
+replaceOnce("  ${saveResumeCard()}", "  ${personaRenderWeekAheadAgenda(s.data, todayLocal())}\n\n  ${saveResumeCard()}", "add seven-day agenda", "  ${personaRenderWeekAheadAgenda(s.data, todayLocal())}\n\n  ${saveResumeCard()}");
 
 await writeFile(indexPath, html, "utf8");
 console.log("Built Persona AI v3.1.1 hardened self-contained index.html");
