@@ -1,3 +1,5 @@
+import { personaSelectWeekAhead } from "../domain/today.mjs";
+
 // Stage 3: actionable seven-day outlook built from read-only domain selectors.
 // No writes, no external provider or background task.
 export function personaRenderWeekAheadAgenda(data, today) {
