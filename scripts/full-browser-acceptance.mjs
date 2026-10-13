@@ -399,7 +399,9 @@ async function testAtomicPersonCascade(cdp) {
   await cdp.evaluate('document.querySelector(\'[data-action="deletePerson"][data-arg="v31-person"]\').click()');
   await waitUntil(cdp, '(document.querySelector("#modalRoot")?.innerText || "").includes("Delete person")', "person delete confirmation");
   await clickModalByText(cdp, "Delete person");
-  await waitUntil(cdp, '(document.querySelector("#view")?.innerText || "").includes("People") && !(document.querySelector("#modalRoot")?.innerText || "").includes("Delete person")', "completed person cascade", 15000);
+  // Observe persistent storage, not a transient DOM state: modal teardown can
+  // lag behind the completed IndexedDB transaction on slower CI browsers.
+  await waitUntil(cdp, '(async () => { const db = await new Promise((resolve, reject) => { const req = indexedDB.open("persona-ai"); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); try { return !(await new Promise((resolve, reject) => { const req = db.transaction("people", "readonly").objectStore("people").get("v31-person"); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); })); } finally { db.close(); } })()', "persisted primary person deletion", 15000);
   const after = await snapshot(cdp);
   assert.ok(!after.people.some((p) => p.id === "v31-person"), "Primary person record survived cascade deletion");
   for (const [store, rows] of Object.entries(after)) {
