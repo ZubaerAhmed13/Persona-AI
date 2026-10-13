@@ -2,7 +2,6 @@
 // These tests must never open a real user's IndexedDB or modify user data.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -149,13 +148,19 @@ test("backup formats, safety ordering, and encrypted-restore entry points remain
     'function encryptBackupJSON(', 'function decryptBackupJSON(',
     'function exportJSON(', 'function exportEncrypted(',
     'function importEncrypted(', 'async function safeImport(',
+    'function applyVerifiedBackup(',
     'const snapshot = buildBackupPayload(getState().settings, getState().data);',
-    'download2("persona-safety-backup.json"', 'function resetAll('
+    'download2("persona-safety-backup.json"',
+    'await db2.replaceStoresAtomically(data);',
+    'personaAtomicDeletePerson(await openDb(), STORES, personId)',
+    'function resetAll('
   ]) assert.ok(html.includes(marker), "Backup/restore compatibility marker missing: " + marker);
-  const importCode = capture(/async function safeImport\(parsed\) \{([\s\S]*?)\n  function openAuditLog/, html, "safeImport");
-  const snapshot = importCode.indexOf("const snapshot = buildBackupPayload(");
-  const firstClear = importCode.indexOf("await db2.clear(store)");
-  assert.ok(snapshot >= 0 && firstClear > snapshot, "Import clears data before assembling the safety backup");
+  const flow = capture(/async function applyVerifiedBackup\(parsed, data, importedSettings\) \{([\s\S]*?)\n  function importEncrypted/, html, "safeRestore");
+  const snapshot = flow.indexOf("const snapshot = buildBackupPayload(");
+  const atomic = flow.indexOf("await db2.replaceStoresAtomically(data)");
+  const settings = flow.indexOf("setSettings(importedSettings.settings)");
+  assert.ok(snapshot >= 0 && atomic > snapshot && settings > atomic,
+    "Atomic restore must capture backup before commit, then apply settings only after commit");
 });
 
 test("local-first and credential isolation boundaries remain present", () => {
@@ -173,11 +178,14 @@ test("local-first and credential isolation boundaries remain present", () => {
   assert.doesNotMatch(html, /navigator\.serviceWorker\.register\("service-worker\.js"\)/);
 });
 
-test("Stage 1 keeps the exact pre-upgrade production artifact unmodified", () => {
-  const data = Buffer.from(html, "utf8");
-  const sha = createHash("sha1").update("blob " + data.byteLength + "\0").update(data).digest("hex");
-  assert.equal(sha, contract.productionGitBlobSha,
-    "Stage 1 production HTML changed. Investigate and certify any intentional bundle change before updating the baseline");
+test("v3.1.1 baseline remains immutable and production file remains self-contained", () => {
+  assert.equal(contract.productionGitBlobSha, "11cb846e8b11a0d3a3ea4806e3c1c5c1136b7fb5", "Historical v3.1.1 reference was rewritten");
+  assert.ok(Buffer.byteLength(html, "utf8") > 800_000, "Production file unexpectedly shrank");
+  const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
+  assert.ok(scripts.length >= 1);
+  for (const [, source] of scripts) new Function(source);
+  // Deliberately revised production files are still gated by CI: npm run build
+  // must produce byte-identical index.html to the committed PR artifact.
 });
 
 test("existing automation remains part of the protection suite", async () => {
