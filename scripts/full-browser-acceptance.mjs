@@ -447,6 +447,26 @@ async function testV4Workspace(cdp) {
   await openView(cdp, "people");
 }
 
+async function testImportedIdMarkupSafety(cdp) {
+  // Historic plaintext backups can contain IDs with quotes. The ID must
+  // survive unchanged, but it must NEVER be parsed as an HTML event attribute.
+  const injectedId = 'imported-id" onmouseover="window.__personaInjected = true';
+  const hostileText = '<img src=x onerror="window.__personaInjected = true">';
+  await cdp.evaluate('(async () => { const db = await new Promise((resolve, reject) => { const r=indexedDB.open("persona-ai"); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); }); try { await new Promise((resolve,reject) => { const tx=db.transaction(["people","memories"],"readwrite"); tx.oncomplete=resolve; tx.onabort=()=>reject(tx.error); tx.objectStore("people").put({ id:' + JSON.stringify(injectedId) + ', name:"Malicious ID Fixture", schemaVersion:7 }); tx.objectStore("memories").put({ id:"v4-hostile-memory", personId:' + JSON.stringify(injectedId) + ', info:' + JSON.stringify(hostileText) + ', date:"2026-10-13T10:00:00.000Z", schemaVersion:7 }); }); } finally { db.close(); } })()');
+  await reload(cdp);
+  await openView(cdp, "people");
+  const test = await cdp.evaluate('(() => { const id=' + JSON.stringify(injectedId) + '; const card=[...document.querySelectorAll(".person-card")].find(el => el.dataset.arg === id); if (!card) return {found:false}; return {found:true, injectedAttr:card.hasAttribute("onmouseover"), name:card.querySelector(".person-name")?.textContent}; })()');
+  assert.equal(test.found, true, "Imported person ID was changed by markup encoding");
+  assert.equal(test.injectedAttr, false, "HTML event handler injected through historical person ID");
+  assert.equal(test.name, "Malicious ID Fixture");
+  await cdp.evaluate('(() => { const id=' + JSON.stringify(injectedId) + '; [...document.querySelectorAll(".person-card")].find(el => el.dataset.arg === id).click(); })()');
+  await waitUntil(cdp, '(document.querySelector(".ph-name")?.textContent || "") === "Malicious ID Fixture"', "hostile-ID profile navigation");
+  const escaped = await cdp.evaluate('({ imageHandlers:[...document.querySelectorAll("#view [onerror],#view [onmouseover]")].length, memoryDisplayed:(document.querySelector("#view")?.textContent || "").includes("<img src=x"), exploited:!!window.__personaInjected })');
+  assert.equal(escaped.imageHandlers, 0, "Imported note became an event-bearing HTML element");
+  assert.equal(escaped.exploited, false, "A hostile imported note executed JavaScript");
+  assert.equal(escaped.memoryDisplayed, true, "Imported memory was not displayed as escaped text");
+}
+
 async function testLegacyMigrationRecovery(cdp) {
   const seeded = await cdp.evaluate('(async () => { const db = await new Promise((resolve, reject) => { const r=indexedDB.open("persona-ai"); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); }); try { const due = new Date(Date.now() - 86400000).toISOString().slice(0,10); await new Promise((resolve,reject) => { const tx=db.transaction(["people","followUps"],"readwrite"); tx.oncomplete=resolve; tx.onabort=()=>reject(tx.error); tx.objectStore("people").put({ id:"v4-migrate-check", name:"Migration Test Person", createdAt:"2025-01-01T00:00:00.000Z" }); tx.objectStore("followUps").put({ id:"v4-expired-snooze", personId:"v4-migrate-check", text:"Expired snooze test reminder", dueDate:due, status:"snoozed", createdAt:"2025-01-01T00:00:00.000Z", schemaVersion:7 }); }); localStorage.removeItem("persona.v4.schemaRepair.v1"); return due; } finally { db.close(); } })()');
   assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(seeded), "Synthetic legacy migration fixture not inserted");
@@ -618,6 +638,7 @@ try {
   await testRejectCorruptBackup(cdp);
   await testAtomicPersonCascade(cdp);
   await testLegacyMigrationRecovery(cdp);
+  await testImportedIdMarkupSafety(cdp);
 
   assert.deepEqual(runtimeErrors, [], `Runtime errors: ${runtimeErrors.join(" | ")}`);
   assert.equal(consoleMessages.some((x) => x.includes(MOCK_KEY)), false, "API key leaked to console");

@@ -9,6 +9,10 @@ let html = await readFile(indexPath, "utf8");
 
 function replaceOnce(oldText, newText, label, alreadyText) {
   if (html.includes(alreadyText)) return;
+  // A previously certified index.html can already contain the final HTML
+  // escaping pass. Preserve that safe form on subsequent deterministic builds.
+  const escapedAlready = alreadyText.replace(/\$\{([A-Za-z][A-Za-z0-9_.]*)\}/g, (_match, expression) => "${esc2(" + expression + ")}");
+  if (html.includes(escapedAlready)) return;
   const matches = html.split(oldText).length - 1;
   if (matches !== 1) throw new Error(`${label}: expected one source match, found ${matches}`);
   html = html.replace(oldText, newText);
