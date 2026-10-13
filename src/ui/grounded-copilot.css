@@ -1,0 +1,25 @@
+/* Persona AI 4.0 Stage 7 — evidence desk, no external assets */
+.v4s7-panel{border:1px solid var(--border);border-radius:12px;background:var(--bg);padding:15px;margin:12px 0 16px}
+.v4s7-head{display:flex;gap:14px;align-items:flex-start;justify-content:space-between}
+.v4s7-head strong{font-size:1rem;color:var(--text-strong)}
+.v4s7-head p{font-size:.83rem;color:var(--text-soft);margin:4px 0 0}
+.v4s7-pill{border:1px solid var(--border);border-radius:24px;padding:5px 10px;white-space:nowrap;font-size:.74rem;color:var(--text-soft)}
+.v4s7-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.v4s7-scope,.v4s7-privacy{font-size:.78rem;color:var(--text-soft);margin:7px 0;line-height:1.55}
+.v4s7-privacy{border-top:1px solid var(--border);padding-top:10px}
+.v4s7-answer{border:1px solid var(--border);border-radius:12px;padding:15px;background:var(--bg)}
+.v4s7-answer-title{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:.82rem;color:var(--text-soft)}
+.v4s7-answer-title strong{color:var(--text-strong)}
+.v4s7-answer-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:.88rem;margin:14px 0}
+.v4s7-sources h3{font-size:.83rem;font-weight:700;margin:12px 0 8px}
+.v4s7-source{display:flex;flex-direction:column;align-items:stretch;text-align:left;gap:5px;background:var(--bg-raise);border:1px solid var(--border);border-radius:9px;padding:10px;width:100%;margin-top:7px;color:var(--text-strong);font:inherit;font-size:.79rem;cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere}
+.v4s7-source:hover{border-color:var(--accent)}
+.v4s7-source-label{font-size:.72rem;font-weight:700;color:var(--accent)}
+.v4s7-disclaimer{font-size:.76rem;color:var(--text-soft);margin:12px 0 0}
+.v4s7-json{width:100%;min-height:200px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.74rem;line-height:1.5}
+.v4s7-source-detail{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.v4s7-interpretation{border:1px solid var(--border);border-radius:9px;padding:12px;margin-top:10px}
+.v4s7-interpretation p{white-space:pre-wrap;margin:6px 0 0}
+.v4s7-panel :focus-visible,.v4s7-answer :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:700px){.v4s7-head{flex-direction:column;gap:8px}.v4s7-panel,.v4s7-answer{padding:12px}}
+@media(prefers-reduced-motion:reduce){.v4s7-source{transition:none}}
