@@ -117,42 +117,100 @@ export function personaAtomicRestore(dbConnection, data) {
 // Database-level cascade (including the real primary people.id record).
 // Reads the personId index inside a single transaction, preventing partial
 // deletion, and removes linked audit records as well as ordinary activity.
+// Delete the person and every provably owned record inside one IndexedDB
+// transaction. Owned IDs are collected from personId indexes before examining
+// older indirect-only child references and audit rows.
+// Never erase a record explicitly attributed to *another* person.
 export function personaAtomicDeletePerson(dbConnection, stores, personId, keyRangeFactory = IDBKeyRange) {
   return new Promise((resolve, reject) => {
-    if (!personId) { reject(new Error("A person ID is required.")); return; }
+    if (!personId || !stores.includes("people")) {
+      reject(new Error("A person ID and the people store are required."));
+      return;
+    }
     let tx;
     let settled = false;
     const fail = (error) => {
-      if (!settled) { settled = true; reject(error || new Error("Person deletion was aborted.")); }
+      if (settled) return;
+      settled = true;
+      reject(error || new Error("Person deletion was aborted."));
     };
+    const owned = new Map(stores.map((name) => [name, new Set()]));
+    owned.get("people").add(personId);
     try {
       tx = dbConnection.transaction(stores, "readwrite");
-      tx.oncomplete = () => { if (!settled) { settled = true; resolve(); } };
+      tx.oncomplete = () => {
+        if (!settled) { settled = true; resolve(); }
+      };
       tx.onabort = () => fail(tx.error || new Error("Person deletion was aborted. No records were deleted."));
+      const safe = (fn) => () => {
+        try { fn(); }
+        catch (error) {
+          try { tx.abort(); } catch {}
+          fail(error);
+        }
+      };
+      // This deletion and all cursor work share the same transaction; there
+      // is no await and nothing becomes visible until successful commit.
       tx.objectStore("people").delete(personId);
-      // Older audit entries sometimes omit personId but point directly at
-      // people[personId] via (store, recordId). Remove those as well.
-      if (stores.includes("auditLog")) {
-        const audit = tx.objectStore("auditLog");
-        const scan = audit.openCursor();
-        scan.onsuccess = () => {
-          const cursor = scan.result;
+      const childLinks = [
+        ["playbookHistory", "playbookId", "playbooks"],
+        ["signalHistory", "signalId", "signals"],
+        ["decisionOptions", "decisionId", "decisions"]
+      ].filter(([child, , parent]) => owned.has(child) && owned.has(parent));
+
+      const scanAudit = () => {
+        if (!owned.has("auditLog")) return;
+        const req = tx.objectStore("auditLog").openCursor();
+        req.onsuccess = safe(() => {
+          const cursor = req.result;
           if (!cursor) return;
-          const record = cursor.value;
-          if (record && record.store === "people" && record.recordId === personId) cursor.delete();
+          const entry = cursor.value;
+          // Audit rows without personId can still identify records that were
+          // just deleted. Preserve records claimed by another person.
+          if (entry && (entry.personId == null || entry.personId === personId) &&
+              owned.get(entry.store)?.has(entry.recordId)) cursor.delete();
           cursor.continue();
-        };
-      }
-      for (const name of stores) {
-        if (name === "people") continue;
+        });
+      };
+
+      const scanIndirectChildren = () => {
+        if (!childLinks.length) { scanAudit(); return; }
+        let remaining = childLinks.length;
+        for (const [child, field, parent] of childLinks) {
+          const req = tx.objectStore(child).openCursor();
+          req.onsuccess = safe(() => {
+            const cursor = req.result;
+            if (!cursor) {
+              if (--remaining === 0) scanAudit();
+              return;
+            }
+            const entry = cursor.value;
+            if (entry && (entry.personId == null || entry.personId === personId) &&
+                owned.get(parent).has(entry[field])) {
+              owned.get(child).add(cursor.primaryKey);
+              cursor.delete();
+            }
+            cursor.continue();
+          });
+        }
+      };
+
+      const linkedStores = stores.filter((name) => name !== "people");
+      if (!linkedStores.length) { scanIndirectChildren(); return; }
+      let remaining = linkedStores.length;
+      for (const name of linkedStores) {
         const store = tx.objectStore(name);
-        const request = store.index("personId").openKeyCursor(keyRangeFactory.only(personId));
-        request.onsuccess = () => {
-          const cursor = request.result;
-          if (!cursor) return;
+        const req = store.index("personId").openKeyCursor(keyRangeFactory.only(personId));
+        req.onsuccess = safe(() => {
+          const cursor = req.result;
+          if (!cursor) {
+            if (--remaining === 0) scanIndirectChildren();
+            return;
+          }
+          owned.get(name).add(cursor.primaryKey);
           store.delete(cursor.primaryKey);
           cursor.continue();
-        };
+        });
       }
     } catch (error) {
       try { tx?.abort(); } catch {}

@@ -394,6 +394,10 @@ async function testAtomicPersonCascade(cdp) {
   await openView(cdp, "people");
   const before = await snapshot(cdp);
   assert.ok(before.people.some((p) => p.id === "v31-person"), "Historical subject missing before person deletion test");
+  // Historical child history can refer to a person's owned parent record
+  // without a personId of its own. The cascade must remove these safely.
+  await cdp.evaluate('(async () => { const db = await new Promise((resolve, reject) => { const q=indexedDB.open("persona-ai"); q.onsuccess=()=>resolve(q.result); q.onerror=()=>reject(q.error); }); try { await new Promise((resolve,reject) => { const tx=db.transaction(["playbookHistory","signalHistory","decisionOptions","auditLog"],"readwrite"); tx.oncomplete=resolve; tx.onabort=()=>reject(tx.error); tx.objectStore("playbookHistory").put({id:"v4-indirect-playbook",playbookId:"v31-playbook"}); tx.objectStore("signalHistory").put({id:"v4-indirect-signal",signalId:"v31-signal"}); tx.objectStore("decisionOptions").put({id:"v4-indirect-decision",decisionId:"v31-decision"}); tx.objectStore("auditLog").put({id:"v4-indirect-audit",store:"playbookHistory",recordId:"v4-indirect-playbook"}); }); } finally { db.close(); } })()');
+
   assert.equal(await cdp.evaluate('(() => { const el = document.querySelector(\'[data-action="viewPerson"][data-arg="v31-person"]\'); if (!el) return false; el.click(); return true; })()'), true, "Fixture person profile unavailable");
   await waitUntil(cdp, '!!document.querySelector(\'[data-action="deletePerson"][data-arg="v31-person"]\')', "person delete control");
   await cdp.evaluate('document.querySelector(\'[data-action="deletePerson"][data-arg="v31-person"]\').click()');
@@ -407,6 +411,13 @@ async function testAtomicPersonCascade(cdp) {
   for (const [store, rows] of Object.entries(after)) {
     assert.ok(!rows.some((row) => row.personId === "v31-person"), "Linked record survived person cascade in " + store);
   }
+  for (const [store, id] of [
+    ["playbookHistory", "v4-indirect-playbook"],
+    ["signalHistory", "v4-indirect-signal"],
+    ["decisionOptions", "v4-indirect-decision"],
+    ["auditLog", "v4-indirect-audit"]
+  ]) assert.ok(!after[store].some((row) => row.id === id),
+    "Indirect record survived person erasure: " + store + "." + id);
   assert.ok(after.people.some((p) => p.name === WORKFLOW_PERSON), "Deleting subject removed unrelated person");
   await reload(cdp);
   const persisted = await snapshot(cdp);
