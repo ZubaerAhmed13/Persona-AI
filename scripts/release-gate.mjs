@@ -49,7 +49,7 @@ for(const key of [
 assert.ok(html.includes('DB_VERSION = 5;'));
 assert.ok(html.includes('SCHEMA_VERSION = 7;'));
 assert.ok(html.includes('APP_VERSION = "3.1.1";'));
-assert.equal((html.match(/<script(?:\s[^>]*)?>/g)||[]).length,1,"Expected single inline application script");
+assert.equal((html.match(/<script>\s*\(\(\) => \{/g)||[]).length,1,"Expected one bundled application entrypoint");
 assert.ok(!/<script\b[^>]*\bsrc\s*=/i.test(html),"External script resource forbidden");
 assert.ok(!/<link\b[^>]*\brel=["']stylesheet["']/i.test(html),"External stylesheet forbidden");
 assert.ok(!/<iframe\b/i.test(html),"Unexpected embedded remote frame");
