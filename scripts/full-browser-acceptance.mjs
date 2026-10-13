@@ -478,6 +478,60 @@ async function testImportedIdMarkupSafety(cdp) {
   assert.equal(escaped.memoryDisplayed, true, "Imported memory was not displayed as escaped text");
 }
 
+async function testSevenDayAgenda(cdp) {
+  const future = await cdp.evaluate(`(async () => {
+    const today = new Date();
+    today.setDate(today.getDate() + 3);
+    const day = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0")
+    ].join("-");
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open("persona-ai");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(["followUps", "commitments", "memories"], "readwrite");
+        tx.oncomplete = resolve;
+        tx.onabort = () => reject(tx.error);
+        tx.objectStore("followUps").put({
+          id: "v4-agenda-followup", personId: "v4-migrate-check",
+          text: "Future follow-up action", status: "snoozed", dueDate: day, schemaVersion: 7
+        });
+        tx.objectStore("commitments").put({
+          id: "v4-agenda-commitment", personId: "v4-migrate-check",
+          description: "Legacy commitment action", completed: false, dueDate: day, schemaVersion: 7
+        });
+        tx.objectStore("memories").put({
+          id: "v4-agenda-memory", personId: "v4-migrate-check",
+          text: "Future memory action", reminderDate: day, schemaVersion: 7
+        });
+      });
+    } finally { db.close(); }
+    return day;
+  })()`);
+  assert.match(future, /^\d{4}-\d{2}-\d{2}$/);
+  await reload(cdp);
+  await openView(cdp, "dashboard");
+  await waitUntil(cdp, '(document.querySelector(".persona-agenda")?.innerText || "").includes("Future follow-up action")',
+    "seven-day upcoming agenda");
+  const details = await cdp.evaluate('(() => { const agenda=document.querySelector(".persona-agenda"); return { text:agenda?.innerText, futureRows:agenda?.querySelectorAll(".persona-agenda-row").length, completedButton:!!agenda?.querySelector(\'[data-action="completeFollowUp"][data-arg="v4-agenda-followup"]\'), dateText:agenda?.querySelector(".persona-agenda-date")?.textContent }; })()');
+  assert.ok(details.text.includes("Legacy commitment action"), "Legacy dueDate commitment missing from week ahead");
+  assert.ok(details.text.includes("Future memory action"), "Memory reminder missing from week ahead");
+  assert.ok(details.futureRows >= 3, "Fewer future actions than expected");
+  assert.equal(details.completedButton, true);
+  assert.equal(details.dateText, future, "Agenda shifted a calendar date due to time zone");
+  await cdp.evaluate('document.querySelector(\'.persona-agenda [data-action="completeFollowUp"][data-arg="v4-agenda-followup"]\').click()');
+  await waitUntil(cdp, '!document.querySelector(\'.persona-agenda [data-action="completeFollowUp"][data-arg="v4-agenda-followup"]\')',
+    "completed agenda follow-up disappears from upcoming items");
+  const saved = await snapshot(cdp);
+  assert.equal(saved.followUps.find((row)=>row.id==="v4-agenda-followup")?.status, "done",
+    "Agenda completion was not persisted in the existing followUps store");
+}
+
 async function testLegacyMigrationRecovery(cdp) {
   const seeded = await cdp.evaluate('(async () => { const db = await new Promise((resolve, reject) => { const r=indexedDB.open("persona-ai"); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); }); try { const due = new Date(Date.now() - 86400000).toISOString().slice(0,10); await new Promise((resolve,reject) => { const tx=db.transaction(["people","followUps"],"readwrite"); tx.oncomplete=resolve; tx.onabort=()=>reject(tx.error); tx.objectStore("people").put({ id:"v4-migrate-check", name:"Migration Test Person", createdAt:"2025-01-01T00:00:00.000Z" }); tx.objectStore("followUps").put({ id:"v4-expired-snooze", personId:"v4-migrate-check", text:"Expired snooze test reminder", dueDate:due, status:"snoozed", createdAt:"2025-01-01T00:00:00.000Z", schemaVersion:7 }); }); localStorage.removeItem("persona.v4.schemaRepair.v1"); return due; } finally { db.close(); } })()');
   assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(seeded), "Synthetic legacy migration fixture not inserted");
@@ -650,6 +704,7 @@ try {
   await testAtomicPersonCascade(cdp);
   await testLegacyMigrationRecovery(cdp);
   await testImportedIdMarkupSafety(cdp);
+  await testSevenDayAgenda(cdp);
 
   assert.deepEqual(runtimeErrors, [], `Runtime errors: ${runtimeErrors.join(" | ")}`);
   assert.equal(consoleMessages.some((x) => x.includes(MOCK_KEY)), false, "API key leaked to console");
