@@ -531,7 +531,11 @@ async function testV4Stage9MobileAccessibility(cdp) {
     for (const width of [320,390,720]) {
       await cdp.send("Emulation.setDeviceMetricsOverride",{width,height:740,deviceScaleFactor:1,mobile:true});
       for (const view of ["dashboard","people","interactions","followups","copilot"]) {
-        await openView(cdp,view);
+        if(view==="followups") {
+          const found=await cdp.evaluate('(() => {const b=document.querySelector(\'#v4PrimaryNav [data-v4-view="followups"]\');if(!b)return false;b.click();return true;})()');
+          assert.equal(found,true,"Stage 9 Follow-ups workspace button missing");
+          await waitUntil(cdp,'(document.querySelector("#view .page-title")?.textContent||"").includes("Follow-ups")',"Stage 9 Follow-ups route");
+        } else await openView(cdp,view);
         const result=await cdp.evaluate('(() => {const nav=document.querySelector("#v4MobileNav"),active=nav?.querySelector(\'[aria-current="page"]\');return {width:window.innerWidth,scrollWidth:document.documentElement.scrollWidth,navVisible:!!nav&&getComputedStyle(nav).display!=="none",navCount:nav?.querySelectorAll("button").length,navScrollable:nav?.scrollWidth>nav?.clientWidth,activeHeight:active?.getBoundingClientRect().height,titleRole:document.querySelector("#view .page-title")?.getAttribute("role"),titleLevel:document.querySelector("#view .page-title")?.getAttribute("aria-level"),skip:!!document.querySelector("#v4s9SkipLink"),inputSize:parseFloat(getComputedStyle(document.querySelector("#globalSearchInput")).fontSize)};})()');
         assert.equal(result.navVisible,true,"Mobile navigation hidden on "+view+" at "+width+"px");
         assert.equal(result.navCount,6,"Mobile nav lost a destination at "+width+"px");
