@@ -7840,7 +7840,7 @@ self.onmessage = function (e) {
   }
   function segButtons({ name, options, selected }) {
     return `<div class="seg" role="group" aria-label="${esc2(name)}">
-    ${options.map((o) => `<button type="button" data-seg="${name}" data-val="${esc2(o)}" class="${o === selected ? "active" : ""}">${esc2(o)}</button>`).join("")}
+    ${options.map((o) => `<button type="button" data-seg="${esc2(name)}" data-val="${esc2(o)}" class="${o === selected ? "active" : ""}">${esc2(o)}</button>`).join("")}
   </div>`;
   }
   function confidenceField(selected = "Moderate") {
@@ -8029,7 +8029,7 @@ self.onmessage = function (e) {
       if (cat) list = list.filter((p) => p.category === cat);
       list = sortBy(list, "date").reverse();
       const tbody = root().querySelector(".data-table tbody");
-      if (tbody) tbody.innerHTML = list.map((p) => `<tr><td>${esc2(personName(p.personId))}</td><td><span class="tag tag-accent">${esc2(p.category)}</span></td><td class="strong">${esc2(p.value)}</td><td class="muted">${esc2(p.evidence || "\u2014")}</td><td class="muted">${esc2(p.sourceType || "\u2014")}</td><td>${confidenceBar(p.confidence || "Low")}</td><td>${fmtDate(p.date)}</td><td><button class="icon-btn-sm" data-action="deletePreference" data-arg="${p.id}">${icon("trash", 13)}</button></td></tr>`).join("");
+      if (tbody) tbody.innerHTML = list.map((p) => `<tr><td>${esc2(personName(p.personId))}</td><td><span class="tag tag-accent">${esc2(p.category)}</span></td><td class="strong">${esc2(p.value)}</td><td class="muted">${esc2(p.evidence || "\u2014")}</td><td class="muted">${esc2(p.sourceType || "\u2014")}</td><td>${confidenceBar(p.confidence || "Low")}</td><td>${fmtDate(p.date)}</td><td><button class="icon-btn-sm" data-action="deletePreference" data-arg="${esc2(p.id)}">${icon("trash", 13)}</button></td></tr>`).join("");
     });
     const memCat = root().querySelector('select[data-filter="memcat"]');
     if (memCat) memCat.addEventListener("change", (e) => {
@@ -8748,8 +8748,8 @@ self.onmessage = function (e) {
 
   ${briefing.length ? `<div class="list">${briefing.map((b) => `<div class="list-item" style="align-items:flex-start">
       <div class="avatar-lg" style="width:34px;height:34px;border-radius:9px;font-size:.8rem;background:${colorFor(b.name)}">${esc2(initials(b.name))}</div>
-      <div style="flex:1"><div class="strong" style="display:flex;gap:8px;align-items:center">${esc2(b.name)} ${importanceBadge(b.importance)}<span class="badge ${statusBadge(b.status)}">${esc2(b.status)}</span></div><div class="muted" style="font-size:.84rem">${esc2(b.message)}</div>${b.daysSince != null && b.daysSince >= 30 && !b.suppressed ? `<button class="link-btn" data-action="reachOut" data-arg="${b.personId}">Reach out? \u2192</button>` : ""}</div>
-      <button class="icon-btn-sm" data-action="viewPerson" data-arg="${b.personId}" aria-label="Open ${esc2(b.name)}">${icon("arrowRight", 14)}</button>
+      <div style="flex:1"><div class="strong" style="display:flex;gap:8px;align-items:center">${esc2(b.name)} ${importanceBadge(b.importance)}<span class="badge ${statusBadge(b.status)}">${esc2(b.status)}</span></div><div class="muted" style="font-size:.84rem">${esc2(b.message)}</div>${b.daysSince != null && b.daysSince >= 30 && !b.suppressed ? `<button class="link-btn" data-action="reachOut" data-arg="${esc2(b.personId)}">Reach out? \u2192</button>` : ""}</div>
+      <button class="icon-btn-sm" data-action="viewPerson" data-arg="${esc2(b.personId)}" aria-label="Open ${esc2(b.name)}">${icon("arrowRight", 14)}</button>
     </div>`).join("")}</div>` : `<p class="muted">No relationships need attention right now.</p>`}
   </div>
 
@@ -8822,7 +8822,7 @@ self.onmessage = function (e) {
     if (!items.length) return "";
     return `<div class="card" style="margin-bottom:16px">
     <div class="card-title">Action Center <span class="ctl muted">What needs attention</span></div>
-    <div class="list">${items.map((it) => `<div class="list-item" style="cursor:pointer" data-action="${it.act}"><span class="tag tag-accent">${it.n} ${esc2(it.label)}</span><span class="muted" style="margin-left:auto">\u2192</span></div>`).join("")}</div>
+    <div class="list">${items.map((it) => `<div class="list-item" style="cursor:pointer" data-action="${esc2(it.act)}"><span class="tag tag-accent">${it.n} ${esc2(it.label)}</span><span class="muted" style="margin-left:auto">\u2192</span></div>`).join("")}</div>
   </div>`;
   }
   function importanceBadge(imp) {
@@ -8841,10 +8841,10 @@ self.onmessage = function (e) {
       memory: "badge-accent"
     };
     let action = "";
-    if (t.kind === "commitment") action = `<button class="btn btn-sm btn-primary" data-action="completeCommitment" data-arg="${t.id}">Complete</button> <button class="btn btn-sm" data-action="lateCommitment" data-arg="${t.id}">Late</button> <button class="btn btn-sm" data-action="cancelCommitment" data-arg="${t.id}">Cancelled</button> <button class="btn btn-sm" data-action="addFollowUp" data-arg="${t.personId}">Follow up</button>`;
-    else if (t.kind === "prediction") action = `<button class="btn btn-sm btn-primary" data-action="outcomePrediction" data-arg="${t.id}">Record outcome</button>`;
-    else if (t.kind === "followUp") action = `<button class="btn btn-sm btn-primary" data-action="completeFollowUp" data-arg="${t.id}">Done</button> <button class="btn btn-sm" data-action="snoozeFollowUp" data-arg="${t.id}">Snooze</button>`;
-    else if (t.kind === "memory") action = `<button class="btn btn-sm btn-primary" data-action="completeMemory" data-arg="${t.id}">Check in</button>`;
+    if (t.kind === "commitment") action = `<button class="btn btn-sm btn-primary" data-action="completeCommitment" data-arg="${esc2(t.id)}">Complete</button> <button class="btn btn-sm" data-action="lateCommitment" data-arg="${esc2(t.id)}">Late</button> <button class="btn btn-sm" data-action="cancelCommitment" data-arg="${esc2(t.id)}">Cancelled</button> <button class="btn btn-sm" data-action="addFollowUp" data-arg="${esc2(t.personId)}">Follow up</button>`;
+    else if (t.kind === "prediction") action = `<button class="btn btn-sm btn-primary" data-action="outcomePrediction" data-arg="${esc2(t.id)}">Record outcome</button>`;
+    else if (t.kind === "followUp") action = `<button class="btn btn-sm btn-primary" data-action="completeFollowUp" data-arg="${esc2(t.id)}">Done</button> <button class="btn btn-sm" data-action="snoozeFollowUp" data-arg="${esc2(t.id)}">Snooze</button>`;
+    else if (t.kind === "memory") action = `<button class="btn btn-sm btn-primary" data-action="completeMemory" data-arg="${esc2(t.id)}">Check in</button>`;
     const overdue = t.kind === "commitment" && t.overdue;
     return `<div class="list-item" style="align-items:flex-start">
     <span class="badge ${badges[t.kind]}">${esc2(kindLabel)}</span>
@@ -8945,7 +8945,7 @@ self.onmessage = function (e) {
       <div class="insight-tag">PREDICTION</div>
       <div class="insight-body">${esc2(pr.predictionText || pr.target)} \u2014 estimated likelihood ${esc2(pr.confidence || "\u2014")}%.</div>
       <div class="insight-meta"><span>${personName(pr.personId)}</span><span>Confidence: ${esc2(pr.confidence || "\u2014")}%</span></div>
-      <div class="insight-actions"><button class="link-btn" data-action="outcomePrediction" data-arg="${pr.id}">Record outcome \u2192</button></div>
+      <div class="insight-actions"><button class="link-btn" data-action="outcomePrediction" data-arg="${esc2(pr.id)}">Record outcome \u2192</button></div>
     </div>`);
     }
     const dq = dataQuality(null);
@@ -8982,14 +8982,14 @@ self.onmessage = function (e) {
   function personCard(p) {
     const st = personStats(p.id);
     const rel = reliability(p.id);
-    return `<div class="card person-card" data-action="viewPerson" data-arg="${p.id}" role="button" tabindex="0">
+    return `<div class="card person-card" data-action="viewPerson" data-arg="${esc2(p.id)}" role="button" tabindex="0">
     <div style="display:flex;gap:12px;align-items:center">
       <div class="avatar-lg" style="background:${colorFor(p.name)}">${esc2(initials(p.name))}</div>
       <div style="flex:1">
         <div class="person-name">${esc2(p.name)}</div>
         <div class="person-meta">${esc2(p.relationshipType || "Relationship")}${p.organization ? " \xB7 " + esc2(p.organization) : ""}</div>
       </div>
-      <button class="icon-btn-sm" data-action="editPerson" data-arg="${p.id}" aria-label="Edit ${esc2(p.name)}">${icon("edit", 14)}</button>
+      <button class="icon-btn-sm" data-action="editPerson" data-arg="${esc2(p.id)}" aria-label="Edit ${esc2(p.name)}">${icon("edit", 14)}</button>
     </div>
     <div class="person-stats">
       <span>${st.observations} obs</span><span>${st.interactions} interactions</span><span>${st.daysTracked}d</span>
@@ -9084,22 +9084,22 @@ self.onmessage = function (e) {
       <div class="ph-sub">${st.observations} observations \xB7 ${st.interactions} interactions \xB7 ${st.daysTracked} days tracked${p.alias ? " \xB7 alias " + esc2(p.alias) : ""}</div>
       <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;align-items:center">
         <span class="muted" style="font-size:.78rem">Importance:</span>
-        <div class="seg">${impMap.map((v) => `<button type="button" data-action="setImportance" data-arg="${p.id}" data-val="${v}" class="${v === importance ? "active" : ""}">${v}</button>`).join("")}</div>
+        <div class="seg">${impMap.map((v) => `<button type="button" data-action="setImportance" data-arg="${esc2(p.id)}" data-val="${esc2(v)}" class="${v === importance ? "active" : ""}">${v}</button>`).join("")}</div>
         <span class="badge ${statusBadge(rstatus.status)}">Relationship: ${esc2(rstatus.status)}</span>
         <span class="badge badge-info">${openCommits} open commitments</span>
         <span class="badge badge-warn">${pendingPreds} predictions</span>
       </div>
     </div>
     <div class="head-actions">
-      <button class="btn btn-primary" data-action="personBrief360" data-arg="${p.id}" data-tip="Open the 360\xB0 Person Brief \u2014 a one-page intelligence view.">${icon("reports", 15)} 360\xB0 Brief</button>
-      <button class="btn btn-primary" data-action="quickCapture" data-arg="${p.id}" data-tip="Log an interaction in 15\u201330 seconds.">${icon("plus", 15)} Log Interaction</button>
-      <button class="btn" data-action="addDecision" data-arg="${p.id}" data-tip="Get an evidence-informed brief before an important interaction.">${icon("predictions", 15)} Decision</button>
-      <button class="btn" data-action="aiQuestion" data-arg="${p.id}" data-tip="Ask a natural-language question answered from your recorded evidence.">${icon("spark", 15)} Ask PERSONA</button>
-      <button class="btn" data-action="addMemory" data-arg="${p.id}" data-tip="Save useful information someone shared, with an optional reminder.">${icon("journal", 15)} Memory</button>
-      <button class="btn" data-action="challenge" data-arg="${p.id}" data-tip="Find supporting and counter evidence for an interpretation.">${icon("scale", 15)} Challenge</button>
-      <button class="btn" data-action="forecast" data-arg="${p.id}" data-tip="Prepare for an upcoming interaction with historical context.">${icon("arrowRight", 15)} Forecast</button>
-      <button class="btn" data-action="simulate" data-arg="${p.id}" data-tip="Ask 'what if\u2026?' and see a sample-aware likelihood from comparable situations.">${icon("spark", 15)} Simulate</button>
-      <button class="btn" data-action="prepare" data-arg="${p.id}" data-tip="Generate an evidence-backed brief before your next interaction.">${icon("arrowRight", 15)} Prepare</button>
+      <button class="btn btn-primary" data-action="personBrief360" data-arg="${esc2(p.id)}" data-tip="Open the 360\xB0 Person Brief \u2014 a one-page intelligence view.">${icon("reports", 15)} 360\xB0 Brief</button>
+      <button class="btn btn-primary" data-action="quickCapture" data-arg="${esc2(p.id)}" data-tip="Log an interaction in 15\u201330 seconds.">${icon("plus", 15)} Log Interaction</button>
+      <button class="btn" data-action="addDecision" data-arg="${esc2(p.id)}" data-tip="Get an evidence-informed brief before an important interaction.">${icon("predictions", 15)} Decision</button>
+      <button class="btn" data-action="aiQuestion" data-arg="${esc2(p.id)}" data-tip="Ask a natural-language question answered from your recorded evidence.">${icon("spark", 15)} Ask PERSONA</button>
+      <button class="btn" data-action="addMemory" data-arg="${esc2(p.id)}" data-tip="Save useful information someone shared, with an optional reminder.">${icon("journal", 15)} Memory</button>
+      <button class="btn" data-action="challenge" data-arg="${esc2(p.id)}" data-tip="Find supporting and counter evidence for an interpretation.">${icon("scale", 15)} Challenge</button>
+      <button class="btn" data-action="forecast" data-arg="${esc2(p.id)}" data-tip="Prepare for an upcoming interaction with historical context.">${icon("arrowRight", 15)} Forecast</button>
+      <button class="btn" data-action="simulate" data-arg="${esc2(p.id)}" data-tip="Ask 'what if\u2026?' and see a sample-aware likelihood from comparable situations.">${icon("spark", 15)} Simulate</button>
+      <button class="btn" data-action="prepare" data-arg="${esc2(p.id)}" data-tip="Generate an evidence-backed brief before your next interaction.">${icon("arrowRight", 15)} Prepare</button>
     </div>
   </div>
 
@@ -9113,17 +9113,17 @@ self.onmessage = function (e) {
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <div class="card-title">Personal Brief <span class="ctl"><button class="link-btn" data-action="prepare" data-arg="${p.id}">Prepare \u2192</button></span></div>
+    <div class="card-title">Personal Brief <span class="ctl"><button class="link-btn" data-action="prepare" data-arg="${esc2(p.id)}">Prepare \u2192</button></span></div>
     <div class="grid grid-2">
       <div>
         <div class="ab-label" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:4px">Open loops (${personLoops(p.id).length})</div>
         ${personLoops(p.id).length ? `<div class="list">${personLoops(p.id).slice(0, 4).map((l) => `<div class="list-item"><span class="tag ${l.priority === "High" ? "badge-warn" : "badge-neutral"}" style="font-size:.68rem">${esc2(l.priority)}</span><span class="muted" style="font-size:.82rem">${esc2(l.text)}</span></div>`).join("")}</div>` : `<p class="muted" style="font-size:.82rem">No open loops.</p>`}
         <div class="ab-label" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin:10px 0 4px">Memories (${memories.length})</div>
-        ${memories.length ? `<div class="muted" style="font-size:.82rem">${memories.slice(0, 2).map((m) => m.info).join(" \xB7 ")}${memories.length > 2 ? "\u2026" : ""}</div>` : `<p class="muted" style="font-size:.82rem">No memories saved.</p>`}
+        ${memories.length ? `<div class="muted" style="font-size:.82rem">${memories.slice(0, 2).map((m) => esc2(m.info)).join(" \xB7 ")}${memories.length > 2 ? "\u2026" : ""}</div>` : `<p class="muted" style="font-size:.82rem">No memories saved.</p>`}
       </div>
       <div>
         <div class="ab-label" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:4px">Expectations (${personExpectations(p.id).length})</div>
-        ${personExpectations(p.id).length ? `<div class="list">${personExpectations(p.id).slice(0, 3).map((e) => `<div class="list-item"><span class="tag tag-accent" style="font-size:.68rem">${esc2(e.confidence)}%</span><span class="muted" style="font-size:.82rem">${esc2(e.text)}</span>${e.status === "open" ? `<button class="btn btn-sm" data-action="resolveExpectation" data-arg="${e.id}">Resolve</button>` : ""}</div>`).join("")}</div>` : `<p class="muted" style="font-size:.82rem">No recorded expectations. Use <strong>Prepare</strong> to record one.</p>`}
+        ${personExpectations(p.id).length ? `<div class="list">${personExpectations(p.id).slice(0, 3).map((e) => `<div class="list-item"><span class="tag tag-accent" style="font-size:.68rem">${esc2(e.confidence)}%</span><span class="muted" style="font-size:.82rem">${esc2(e.text)}</span>${e.status === "open" ? `<button class="btn btn-sm" data-action="resolveExpectation" data-arg="${esc2(e.id)}">Resolve</button>` : ""}</div>`).join("")}</div>` : `<p class="muted" style="font-size:.82rem">No recorded expectations. Use <strong>Prepare</strong> to record one.</p>`}
         <div class="ab-label" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin:10px 0 4px">Recent (${personRecent(p.id).length} in 30d)</div>
         <p class="muted" style="font-size:.82rem">${personRecent(p.id).length} interaction(s) in the last 30 days.</p>
       </div>
@@ -9191,19 +9191,19 @@ self.onmessage = function (e) {
 
   <div class="card" style="margin-bottom:16px">
     <div class="card-title">Interaction Trends <span class="ctl muted">Select a window</span></div>
-    <div class="seg" style="margin-bottom:12px" id="trendSeg">${["7d", "30d", "90d", "6m", "all"].map((w) => `<button type="button" data-trend="${w}" class="${w === "30d" ? "active" : ""}">${esc2(w === "6m" ? "6 months" : w === "all" ? "All" : w)}</button>`).join("")}</div>
+    <div class="seg" style="margin-bottom:12px" id="trendSeg">${["7d", "30d", "90d", "6m", "all"].map((w) => `<button type="button" data-trend="${esc2(w)}" class="${w === "30d" ? "active" : ""}">${esc2(w === "6m" ? "6 months" : w === "all" ? "All" : w)}</button>`).join("")}</div>
     <div id="trendOut">${trendLine({ title: "Interaction frequency", points: interactionFrequency(p.id, 30), unit: " events" })}</div>
     <div class="chart-tip">Charts show recorded interaction frequency. Use the journal to drill into individual entries.</div>
   </div>
 
   <div class="grid grid-2" style="margin-bottom:16px">
     <div class="card">
-      <div class="card-title">Memory <span class="ctl"><button class="link-btn" data-action="addMemory" data-arg="${p.id}">+ Add memory</button></span></div>
-      ${memories.length ? `<div class="list">${memories.slice(0, 5).map((m) => `<div class="list-item"><div style="flex:1"><span class="tag tag-accent">${esc2(m.category || "Other")}</span><div class="strong" style="font-size:.86rem">${esc2(m.info)}</div><div class="muted" style="font-size:.74rem">Learned ${fmtDate(m.date)}</div></div><button class="icon-btn-sm" data-action="completeMemory" data-arg="${m.id}">${icon("check", 14)}</button></div>`).join("")}</div>` : `<p class="muted">Save useful information ${esc2(p.name)} voluntarily shared so you can follow up thoughtfully.</p>`}
+      <div class="card-title">Memory <span class="ctl"><button class="link-btn" data-action="addMemory" data-arg="${esc2(p.id)}">+ Add memory</button></span></div>
+      ${memories.length ? `<div class="list">${memories.slice(0, 5).map((m) => `<div class="list-item"><div style="flex:1"><span class="tag tag-accent">${esc2(m.category || "Other")}</span><div class="strong" style="font-size:.86rem">${esc2(m.info)}</div><div class="muted" style="font-size:.74rem">Learned ${fmtDate(m.date)}</div></div><button class="icon-btn-sm" data-action="completeMemory" data-arg="${esc2(m.id)}">${icon("check", 14)}</button></div>`).join("")}</div>` : `<p class="muted">Save useful information ${esc2(p.name)} voluntarily shared so you can follow up thoughtfully.</p>`}
     </div>
     <div class="card">
-      <div class="card-title">Decisions <span class="ctl"><button class="link-btn" data-action="addDecision" data-arg="${p.id}">+ New decision</button></span></div>
-      ${scope("decisions", p.id).length ? `<div class="list">${sortBy(scope("decisions", p.id), "date").reverse().slice(0, 4).map((d) => `<div class="list-item"><div style="flex:1"><div class="strong" style="font-size:.86rem">${esc2(d.question)}</div><div class="muted" style="font-size:.74rem">${fmtDate(d.date)}${d.outcome && d.outcome !== "pending" ? " \xB7 outcome: " + esc2(d.outcomeQuality) : " \xB7 pending"}</div></div>${d.outcome && d.outcome !== "pending" ? "" : `<button class="btn btn-sm btn-primary" data-action="decisionOutcome" data-arg="${d.id}">Outcome</button>`}</div>`).join("")}</div>` : `<p class="muted">Record a decision about ${esc2(p.name)} to learn how your judgment performs.</p>`}
+      <div class="card-title">Decisions <span class="ctl"><button class="link-btn" data-action="addDecision" data-arg="${esc2(p.id)}">+ New decision</button></span></div>
+      ${scope("decisions", p.id).length ? `<div class="list">${sortBy(scope("decisions", p.id), "date").reverse().slice(0, 4).map((d) => `<div class="list-item"><div style="flex:1"><div class="strong" style="font-size:.86rem">${esc2(d.question)}</div><div class="muted" style="font-size:.74rem">${fmtDate(d.date)}${d.outcome && d.outcome !== "pending" ? " \xB7 outcome: " + esc2(d.outcomeQuality) : " \xB7 pending"}</div></div>${d.outcome && d.outcome !== "pending" ? "" : `<button class="btn btn-sm btn-primary" data-action="decisionOutcome" data-arg="${esc2(d.id)}">Outcome</button>`}</div>`).join("")}</div>` : `<p class="muted">Record a decision about ${esc2(p.name)} to learn how your judgment performs.</p>`}
     </div>
   </div>
 
@@ -9224,13 +9224,13 @@ self.onmessage = function (e) {
   </div>
 
   <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-    <button class="btn btn-sm" data-action="editPerson" data-arg="${p.id}">${icon("edit", 14)} Edit profile</button>
-    <button class="btn btn-sm" data-action="addPreference" data-arg="${p.id}">${icon("plus", 14)} Preference</button>
-    <button class="btn btn-sm" data-action="addBoundary" data-arg="${p.id}">${icon("plus", 14)} Boundary</button>
-    <button class="btn btn-sm" data-action="addConflict" data-arg="${p.id}">${icon("plus", 14)} Conflict</button>
-    <button class="btn btn-sm" data-action="addSupport" data-arg="${p.id}">${icon("plus", 14)} Support</button>
-    <button class="btn btn-sm" data-action="addStatement" data-arg="${p.id}">${icon("plus", 14)} Statement</button>
-    <button class="btn btn-sm btn-danger" data-action="deletePerson" data-arg="${p.id}">${icon("trash", 14)} Delete</button>
+    <button class="btn btn-sm" data-action="editPerson" data-arg="${esc2(p.id)}">${icon("edit", 14)} Edit profile</button>
+    <button class="btn btn-sm" data-action="addPreference" data-arg="${esc2(p.id)}">${icon("plus", 14)} Preference</button>
+    <button class="btn btn-sm" data-action="addBoundary" data-arg="${esc2(p.id)}">${icon("plus", 14)} Boundary</button>
+    <button class="btn btn-sm" data-action="addConflict" data-arg="${esc2(p.id)}">${icon("plus", 14)} Conflict</button>
+    <button class="btn btn-sm" data-action="addSupport" data-arg="${esc2(p.id)}">${icon("plus", 14)} Support</button>
+    <button class="btn btn-sm" data-action="addStatement" data-arg="${esc2(p.id)}">${icon("plus", 14)} Statement</button>
+    <button class="btn btn-sm btn-danger" data-action="deletePerson" data-arg="${esc2(p.id)}">${icon("trash", 14)} Delete</button>
   </div>
 
   <div class="guardrail" style="margin-top:16px">${icon("info", 16)} <span><strong>Observed Behavioral Indicators</strong> are heuristic scores derived only from the evidence you record. They are not clinically validated and do not reveal anyone's true personality, IQ, or intentions.</span></div>`;
@@ -9244,7 +9244,7 @@ self.onmessage = function (e) {
     const sa = ind.sampleAware;
     const confLabel2 = sa && sa.confidence ? sa.confidence : ind.confidence;
     const explain = renderIndicatorTip(key);
-    return `<div class="indicator" data-action="evidence" data-arg="${key}" data-person="${personId || ""}" data-tip="${esc2(explain + " Click to trace supporting and counter evidence.")}" role="button" tabindex="0" style="cursor:pointer">
+    return `<div class="indicator" data-action="evidence" data-arg="${esc2(key)}" data-person="${esc2(personId || "")}" data-tip="${esc2(explain + " Click to trace supporting and counter evidence.")}" role="button" tabindex="0" style="cursor:pointer">
     <div class="in-name">${esc2(ind.name)}</div>
     <div class="in-score">${ind.score}<small>/100</small></div>
     <div class="in-meta">
@@ -9269,7 +9269,7 @@ self.onmessage = function (e) {
   </div>
   ${people.length ? `
   <div class="filter-bar">
-    <select class="select" data-filter="person"><option value="all">All people</option>${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select>
+    <select class="select" data-filter="person"><option value="all">All people</option>${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select>
     <select class="select" data-filter="type"><option value="">All types</option>${INTERACTION_TYPES.map((t) => `<option>${esc2(t)}</option>`).join("")}</select>
     <select class="select" data-filter="initiator"><option value="">Any initiator</option><option>Me</option><option>Them</option><option>Mutual</option><option>Unclear</option></select>
     <button class="btn btn-sm" data-action="exportCSV" data-store="interactions">${icon("exportI", 14)} CSV</button>
@@ -9290,8 +9290,8 @@ self.onmessage = function (e) {
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${(i.behaviorTags || []).map((t) => `<span class="tag">${esc2(t)}</span>`).join("")}${(i.context || []).map((c) => `<span class="tag" style="background:var(--info-soft);color:var(--info)">${esc2(c)}</span>`).join("")}</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:4px">
-      <button class="icon-btn-sm" data-action="editInteraction" data-arg="${i.id}" aria-label="Edit">${icon("edit", 13)}</button>
-      <button class="icon-btn-sm" data-action="deleteInteraction" data-arg="${i.id}" aria-label="Delete">${icon("trash", 13)}</button>
+      <button class="icon-btn-sm" data-action="editInteraction" data-arg="${esc2(i.id)}" aria-label="Edit">${icon("edit", 13)}</button>
+      <button class="icon-btn-sm" data-action="deleteInteraction" data-arg="${esc2(i.id)}" aria-label="Delete">${icon("trash", 13)}</button>
     </div>
   </div>`;
   }
@@ -9301,7 +9301,7 @@ self.onmessage = function (e) {
     if (tag) list = list.filter((o) => (o.tags || []).includes(tag));
     list = sortBy(list, "date").reverse();
     const allTags = [...new Set(getState().data.observations.flatMap((o) => o.tags || []))];
-    const filterSel = peopleList().length ? `<select class="select" data-filter="person"><option value="all">All people</option>${peopleList().map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select>` : "";
+    const filterSel = peopleList().length ? `<select class="select" data-filter="person"><option value="all">All people</option>${peopleList().map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select>` : "";
     return `
   <div class="page-head">
     <div><div class="page-title">Behavioral Journal</div><div class="page-desc">A timeline of observations: Date \u2192 Context \u2192 Event \u2192 Tags \u2192 Interpretation \u2192 Confidence.</div></div>
@@ -9324,7 +9324,7 @@ self.onmessage = function (e) {
     ${o.interpretation ? `<div class="tl-body"><em>Interpretation:</em> ${esc2(o.interpretation)} <span class="tag">${esc2(o.interpretationConfidence || "Low")} confidence</span></div>` : ""}
     <div class="tl-tags">${o.evidenceType ? `<span class="tag" style="background:var(--info-soft);color:var(--info)">${esc2(o.evidenceType)}</span>` : ""}${(o.tags || []).map((t) => `<span class="tag" data-tagf="${esc2(t)}" style="cursor:pointer">${esc2(t)}</span>`).join("")}</div>
     <div style="margin-top:6px;display:flex;gap:6px">
-      <button class="icon-btn-sm" data-action="deleteObservation" data-arg="${o.id}" aria-label="Delete">${icon("trash", 13)}</button>
+      <button class="icon-btn-sm" data-action="deleteObservation" data-arg="${esc2(o.id)}" aria-label="Delete">${icon("trash", 13)}</button>
       <button class="icon-btn-sm" data-action="challengeText" aria-label="Challenge">${icon("scale", 13)}</button>
     </div>
   </div>`;
@@ -9438,7 +9438,7 @@ self.onmessage = function (e) {
     <td><span class="badge ${recCol}">${f.reciprocated ? "Yes" : "No"}</span></td>
     <td><span class="badge ${oppCol}">${esc2(opp)}</span></td>
     <td>${esc2(f.outcome || "\u2014")}</td>
-    <td><button class="icon-btn-sm" data-action="deleteFavor" data-arg="${f.id}">${icon("trash", 13)}</button></td>
+    <td><button class="icon-btn-sm" data-action="deleteFavor" data-arg="${esc2(f.id)}">${icon("trash", 13)}</button></td>
   </tr>`;
   }
   function relationshipBalance(pid) {
@@ -9504,7 +9504,7 @@ self.onmessage = function (e) {
         <span class="stat-pill"><b class="trend-down">${wva.mismatch}</b> mismatch</span>
       </div>
       <p class="muted">A mismatch means the statement and later observed behavior were inconsistent. It does not infer deception or intent.</p>` : `<p class="muted">No statement-vs-outcome pairs recorded.</p>`}
-      ${stmts.length ? `<div class="list">${stmts.slice(0, 3).map((s) => `<div class="list-item" style="align-items:flex-start"><span class="tag ${s.match === "yes" ? "badge-ok" : s.match === "no" ? "badge-bad" : "badge-warn"}">${esc2(s.match)}</span><div style="flex:1"><div class="strong" style="font-size:.84rem">${esc2(s.statement)}</div><div class="muted" style="font-size:.78rem">Expected: ${esc2(s.expectedBehavior)} \xB7 Actual: ${esc2(s.actualOutcome)}</div></div><button class="icon-btn-sm" data-action="deleteStatement" data-arg="${s.id}" aria-label="Delete">${icon("trash", 13)}</button></div>`).join("")}</div>` : ""}
+      ${stmts.length ? `<div class="list">${stmts.slice(0, 3).map((s) => `<div class="list-item" style="align-items:flex-start"><span class="tag ${s.match === "yes" ? "badge-ok" : s.match === "no" ? "badge-bad" : "badge-warn"}">${esc2(s.match)}</span><div style="flex:1"><div class="strong" style="font-size:.84rem">${esc2(s.statement)}</div><div class="muted" style="font-size:.78rem">Expected: ${esc2(s.expectedBehavior)} \xB7 Actual: ${esc2(s.actualOutcome)}</div></div><button class="icon-btn-sm" data-action="deleteStatement" data-arg="${esc2(s.id)}" aria-label="Delete">${icon("trash", 13)}</button></div>`).join("")}</div>` : ""}
     </div>
   </div>
   <div class="card">
@@ -9517,7 +9517,7 @@ self.onmessage = function (e) {
     return `<tr>
     <td>${esc2(c.commitment)}</td><td>${fmtDate(c.date)}</td><td>${fmtDate(c.expectedCompletion)}</td>
     <td>${c.actualCompletion ? fmtDate(c.actualCompletion) : "\u2014"}</td><td>${status}</td>
-    <td><button class="icon-btn-sm" data-action="deleteCommitment" data-arg="${c.id}">${icon("trash", 13)}</button></td>
+    <td><button class="icon-btn-sm" data-action="deleteCommitment" data-arg="${esc2(c.id)}">${icon("trash", 13)}</button></td>
   </tr>`;
   }
   function renderCommunication() {
@@ -9618,8 +9618,8 @@ self.onmessage = function (e) {
     ${p.evidenceText ? `<div class="ana-block"><div class="ab-label">Evidence</div><p style="font-size:.82rem">${esc2(p.evidenceText)}</p></div>` : ""}
     ${p.alternatives ? `<div class="ana-block"><div class="ab-label">Alternative explanations</div><ul style="margin:0;padding-left:18px;font-size:.8rem;color:var(--text-soft)">${p.alternatives.split("\n").filter(Boolean).map((a) => `<li>${esc2(a)}</li>`).join("")}</ul></div>` : ""}
     <div class="insight-actions" style="margin-top:10px">
-      ${st === "pending" ? `<button class="btn btn-sm btn-primary" data-action="outcomePrediction" data-arg="${p.id}">Record outcome</button>` : `<span class="badge ${stBadge}">Outcome: ${esc2(st)}</span>`}
-      <button class="icon-btn-sm" data-action="deletePrediction" data-arg="${p.id}" aria-label="Delete">${icon("trash", 13)}</button>
+      ${st === "pending" ? `<button class="btn btn-sm btn-primary" data-action="outcomePrediction" data-arg="${esc2(p.id)}">Record outcome</button>` : `<span class="badge ${stBadge}">Outcome: ${esc2(st)}</span>`}
+      <button class="icon-btn-sm" data-action="deletePrediction" data-arg="${esc2(p.id)}" aria-label="Delete">${icon("trash", 13)}</button>
     </div>
   </div>`;
   }
@@ -9652,9 +9652,9 @@ self.onmessage = function (e) {
     <div class="card-title">Comparison Mode</div>
     ${people.length < 2 ? `<p class="muted">Add at least two people to compare observed behavioral indicators.</p>` : `
     <div class="filter-bar">
-      <select class="select" id="cmpA">${people.map((p) => `<option value="${p.id}" ${p.id === people[0].id ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select>
+      <select class="select" id="cmpA">${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === people[0].id ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select>
       <span>vs</span>
-      <select class="select" id="cmpB">${people.map((p) => `<option value="${p.id}" ${p.id === people[1].id ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select>
+      <select class="select" id="cmpB">${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === people[1].id ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select>
       <button class="btn btn-sm btn-primary" data-action="compare">Compare</button>
     </div>
     <div id="compareOut"></div>
@@ -9665,7 +9665,7 @@ self.onmessage = function (e) {
   ${selected ? `<div class="card" style="margin-top:16px">
     <div class="card-title">Interaction Forecast</div>
     <p>Before a significant interaction, prepare with historical context and a recommended communication approach.</p>
-    <button class="btn btn-primary" data-action="forecast" data-arg="${selected}">${icon("spark", 15)} Prepare next interaction</button>
+    <button class="btn btn-primary" data-action="forecast" data-arg="${esc2(selected)}">${icon("spark", 15)} Prepare next interaction</button>
   </div>` : ""}
   ${selected ? reconnectCard(selected) : ""}
   <div class="card" style="margin-top:16px">
@@ -9678,7 +9678,7 @@ self.onmessage = function (e) {
     if (!goals.length) return `<p class="muted">Set a goal to work toward with a person (e.g. improve communication, maintain contact, reconnect).</p>`;
     return `<div class="list">${goals.slice(0, 8).map((g) => {
       const prog = relationshipGoalProgress(g);
-      return `<div class="list-item"><div style="flex:1"><div class="strong" style="font-size:.85rem">${esc2(g.goal)}</div><div class="muted" style="font-size:.76rem">${esc2(personName(g.personId))} \xB7 progress ${prog.progress}%</div><div class="progress" style="height:4px;margin-top:6px;width:140px"><i style="width:${prog.progress}%;background:var(--accent)"></i></div></div><button class="icon-btn-sm" data-action="deleteRelationshipGoal" data-arg="${g.id}">${icon("trash", 13)}</button></div>`;
+      return `<div class="list-item"><div style="flex:1"><div class="strong" style="font-size:.85rem">${esc2(g.goal)}</div><div class="muted" style="font-size:.76rem">${esc2(personName(g.personId))} \xB7 progress ${prog.progress}%</div><div class="progress" style="height:4px;margin-top:6px;width:140px"><i style="width:${prog.progress}%;background:var(--accent)"></i></div></div><button class="icon-btn-sm" data-action="deleteRelationshipGoal" data-arg="${esc2(g.id)}">${icon("trash", 13)}</button></div>`;
     }).join("")}</div>`;
   }
   function reconnectCard(pid) {
@@ -9691,7 +9691,7 @@ self.onmessage = function (e) {
       <div class="list-item"><span class="tag tag-accent">Last open loop</span><span class="muted" style="font-size:.84rem">${esc2(rc.lastOpenLoop || "None")}</span></div>
     </div>
     <p class="muted" style="font-size:.82rem;margin-top:8px">${esc2(rc.note)}</p>
-    <button class="btn btn-sm" data-action="addFollowUp" data-arg="${pid}">${icon("plus", 13)} Schedule a check-in</button>
+    <button class="btn btn-sm" data-action="addFollowUp" data-arg="${esc2(pid)}">${icon("plus", 13)} Schedule a check-in</button>
   </div>`;
   }
   function decisionErrorSection() {
@@ -9735,8 +9735,8 @@ self.onmessage = function (e) {
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       <span class="stat-pill">Conflicts: <b>${conflicts.length}</b></span>
       <span class="stat-pill">Boundary events: <b>${boundaries.length}</b></span>
-      <button class="btn btn-sm" data-action="blind" data-arg="${p.id}">${icon("eye", 14)} Blind analysis</button>
-      <button class="btn btn-sm" data-action="nextObservations" data-arg="${p.id}">${icon("arrowRight", 14)} What to observe next</button>
+      <button class="btn btn-sm" data-action="blind" data-arg="${esc2(p.id)}">${icon("eye", 14)} Blind analysis</button>
+      <button class="btn btn-sm" data-action="nextObservations" data-arg="${esc2(p.id)}">${icon("arrowRight", 14)} What to observe next</button>
     </div>
   </div>`;
   }
@@ -9750,7 +9750,7 @@ self.onmessage = function (e) {
   <div class="card section-gap">
     <div class="card-title">Generate a Report</div>
     <div class="form-grid">
-      <div class="field"><label for="repPerson">Person</label><select id="repPerson" class="select">${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label for="repPerson">Person</label><select id="repPerson" class="select">${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
       <div class="field"><label for="repTemplate">Template</label><select id="repTemplate" class="select">
         <option value="person">Behavioral Observation Report</option>
         <option value="relationship">Relationship Report</option>
@@ -9784,7 +9784,7 @@ self.onmessage = function (e) {
     <div class="grid grid-2" style="margin-top:12px">
       <div class="card" style="box-shadow:none">
         <div class="strong">CSV Export</div><p class="muted">Export individual datasets for analysis in a spreadsheet.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${["interactions", "observations", "favors", "commitments", "predictions"].map((s) => `<button class="btn btn-sm" data-action="exportCSV" data-store="${s}">${esc2(s)}</button>`).join("")}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${["interactions", "observations", "favors", "commitments", "predictions"].map((s) => `<button class="btn btn-sm" data-action="exportCSV" data-store="${esc2(s)}">${esc2(s)}</button>`).join("")}</div>
       </div>
       <div class="card" style="box-shadow:none">
         <div class="strong">Markdown</div><p class="muted">Export the generated report as portable Markdown.</p>
@@ -9795,7 +9795,7 @@ self.onmessage = function (e) {
   <div class="card section-gap">
     <div class="card-title">Report Builder <span class="ctl muted">Choose sections and format</span></div>
     <div class="form-grid">
-      <div class="field"><label for="rb_person">Subject</label><select id="rb_person" class="select">${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label for="rb_person">Subject</label><select id="rb_person" class="select">${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
       <div class="field"><label for="rb_period">Date range</label><select id="rb_period" class="select"><option value="all">All history</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option><option value="6m">Last 6 months</option></select></div>
     </div>
     <div class="field"><label>Sections</label><div class="tag-grid" data-rbsections>${["Executive summary", "Data quality", "Reliability", "Reciprocity", "Communication", "Initiative", "Boundaries", "Conflict", "Predictions", "Evidence", "Timeline", "Alternatives", "Limitations"].map((s, i) => `<button type="button" class="tag-opt on" data-sec="${esc2(s)}">${esc2(s)}</button>`).join("")}</div></div>
@@ -9926,11 +9926,11 @@ self.onmessage = function (e) {
     <div class="card">
       <div class="card-title">Appearance</div>
       <div class="field"><label>Theme</label>
-        <div class="seg" id="themeSeg">${[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<button type="button" data-themeopt="${v}" class="${s.theme === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        <div class="seg" id="themeSeg">${[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<button type="button" data-themeopt="${esc2(v)}" class="${s.theme === v ? "active" : ""}">${l}</button>`).join("")}</div>
       </div>
       <div class="field"><label>Your display name</label><input class="input" id="userName" value="${esc2(s.userName)}"></div>
       <div class="field"><label>Analysis mode</label>
-        <div class="seg" id="analyticsSeg">${[["auto", "Standard"], ["blind", "Blind (hide my hypothesis)"]].map(([v, l]) => `<button type="button" data-amode="${v}" class="${s.analyticsMode === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        <div class="seg" id="analyticsSeg">${[["auto", "Standard"], ["blind", "Blind (hide my hypothesis)"]].map(([v, l]) => `<button type="button" data-amode="${esc2(v)}" class="${s.analyticsMode === v ? "active" : ""}">${l}</button>`).join("")}</div>
         <p class="hint">Blind analysis reduces confirmation bias by analyzing observations before revealing your interpretation.</p>
       </div>
       <div class="check"><input type="checkbox" id="qcToggle" ${s.quickCapture ? "checked" : ""}><div><div class="ch-label">Quick Capture mode</div><div class="ch-sub">Strip interaction logging to essentials (person, what happened, tags, fact/interpretation) for 15\u201330 second capture.</div></div></div>
@@ -9944,10 +9944,10 @@ self.onmessage = function (e) {
     <div class="card">
       <div class="card-title">Daily Briefing <span class="ctl muted">Personalization</span></div>
       <div class="field"><label>Detail level</label>
-        <div class="seg" id="briefModeSeg">${[["minimal", "Minimal"], ["standard", "Standard"], ["detailed", "Detailed"]].map(([v, l]) => `<button type="button" data-briefmode="${v}" class="${(s.briefingMode || "standard") === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        <div class="seg" id="briefModeSeg">${[["minimal", "Minimal"], ["standard", "Standard"], ["detailed", "Detailed"]].map(([v, l]) => `<button type="button" data-briefmode="${esc2(v)}" class="${(s.briefingMode || "standard") === v ? "active" : ""}">${l}</button>`).join("")}</div>
       </div>
       <div class="field"><label>Copilot / report verbosity</label>
-        <div class="seg" id="verbSeg">${[["compact", "Compact"], ["standard", "Standard"], ["detailed", "Detailed"]].map(([v, l]) => `<button type="button" data-verbosity="${v}" class="${(s.verbosity || "standard") === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        <div class="seg" id="verbSeg">${[["compact", "Compact"], ["standard", "Standard"], ["detailed", "Detailed"]].map(([v, l]) => `<button type="button" data-verbosity="${esc2(v)}" class="${(s.verbosity || "standard") === v ? "active" : ""}">${l}</button>`).join("")}</div>
         <p class="hint">Choose how detailed Copilot answers and reports should be.</p>
       </div>
       <p class="muted" style="margin-bottom:6px">Topics to include:</p>
@@ -9961,7 +9961,7 @@ self.onmessage = function (e) {
         <div class="field" style="margin-top:12px"><label>Provider</label><select class="select" id="aiProvider"><option value="local" ${s.aiProvider === "local" ? "selected" : ""}>Local rule-based (built-in)</option><option value="api" ${s.aiProvider === "api" ? "selected" : ""}>External API (requires config)</option></select></div>
         <div id="apiFields" ${s.aiProvider === "api" ? "" : "hidden"}>
           <div class="field"><label>Endpoint</label><input class="input" id="aiEndpoint" value="${esc2(s.aiEndpoint)}" placeholder="https://api.example.com/v1/chat/completions"></div>
-          <div class="field"><label>API Key</label><input class="input" id="aiApiKey" type="password" autocomplete="off" placeholder="${SecretStore.hasApiKey() ? "Key configured for this session — enter to replace" : "Enter key for this browser session"}"><div class="hint" id="aiKeyStatus">${SecretStore.hasApiKey() ? "Key configured for this session" : "No key configured for this session"}</div><button class="btn btn-sm" type="button" id="clearAiApiKey" style="margin-top:6px">Clear API key</button></div>
+          <div class="field"><label>API Key</label><input class="input" id="aiApiKey" type="password" autocomplete="off" placeholder="${esc2(SecretStore.hasApiKey() ? "Key configured for this session — enter to replace" : "Enter key for this browser session")}"><div class="hint" id="aiKeyStatus">${SecretStore.hasApiKey() ? "Key configured for this session" : "No key configured for this session"}</div><button class="btn btn-sm" type="button" id="clearAiApiKey" style="margin-top:6px">Clear API key</button></div>
           <div class="field"><label>Model</label><input class="input" id="aiModel" value="${esc2(s.aiModel)}" placeholder="model-name"></div>
           <p class="hint">Persona can optionally use an OpenAI-compatible API for evidence-grounded analysis. Relevant context for the current request may be sent to the configured endpoint. The API key is kept only for this browser session and is never included in Persona backups.</p>
         </div>
@@ -10032,7 +10032,7 @@ self.onmessage = function (e) {
   <div class="card" style="margin-top:16px">
     <div class="card-title">Guidance \u2014 every screen <span class="ctl">Click a topic for detailed how-to</span></div>
     <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
-      ${Object.entries(VIEW_GUIDANCE).map(([k, g]) => `<div class="card" style="cursor:pointer;box-shadow:none" data-action="openHelp" data-arg="${k}"><div class="strong">${esc2(g.title)}</div><div class="muted" style="font-size:.74rem;margin-top:4px">${esc2(g.body.replace(/<[^>]+>/g, "").slice(0, 70))}\u2026</div></div>`).join("")}
+      ${Object.entries(VIEW_GUIDANCE).map(([k, g]) => `<div class="card" style="cursor:pointer;box-shadow:none" data-action="openHelp" data-arg="${esc2(k)}"><div class="strong">${esc2(g.title)}</div><div class="muted" style="font-size:.74rem;margin-top:4px">${esc2(g.body.replace(/<[^>]+>/g, "").slice(0, 70))}\u2026</div></div>`).join("")}
     </div>
   </div>
   <div class="card" style="margin-top:16px">
@@ -10114,7 +10114,7 @@ self.onmessage = function (e) {
   </div>
   <div class="card">
     <div class="card-title">Boundary Events</div>
-    ${events.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Situation</th><th>Response</th><th>Notes</th><th></th></tr></thead><tbody>${events.map((e) => `<tr><td>${fmtDate(e.date)}</td><td>${esc2(e.myStatement || e.situation)}</td><td><span class="badge ${["Repeated request", "Became upset"].includes(e.response) ? "badge-warn" : "badge-ok"}">${esc2(e.response)}</span></td><td class="muted">${esc2(e.notes || "\u2014")}</td><td><button class="icon-btn-sm" data-action="deleteBoundary" data-arg="${e.id}">${icon("trash", 13)}</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No boundary events recorded.</p>`}
+    ${events.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Situation</th><th>Response</th><th>Notes</th><th></th></tr></thead><tbody>${events.map((e) => `<tr><td>${fmtDate(e.date)}</td><td>${esc2(e.myStatement || e.situation)}</td><td><span class="badge ${["Repeated request", "Became upset"].includes(e.response) ? "badge-warn" : "badge-ok"}">${esc2(e.response)}</span></td><td class="muted">${esc2(e.notes || "\u2014")}</td><td><button class="icon-btn-sm" data-action="deleteBoundary" data-arg="${esc2(e.id)}">${icon("trash", 13)}</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No boundary events recorded.</p>`}
   </div>`;
   }
   function renderConflict() {
@@ -10159,7 +10159,7 @@ self.onmessage = function (e) {
           <span class="badge ${c.repair ? "badge-ok" : "badge-neutral"}">${c.repair ? "Repair" : "No repair"}</span>
         </div>
       </div>
-      <button class="icon-btn-sm" data-action="deleteConflict" data-arg="${c.id}">${icon("trash", 13)}</button>
+      <button class="icon-btn-sm" data-action="deleteConflict" data-arg="${esc2(c.id)}">${icon("trash", 13)}</button>
     </div>`).join("")}
   </div>` : ""}`;
   }
@@ -10194,7 +10194,7 @@ self.onmessage = function (e) {
   </div>
   ${events.length ? `<div class="card"><div class="card-title">Support Log</div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Kind</th><th>Direction</th><th>Description</th><th></th></tr></thead><tbody>
-      ${events.map((e) => `<tr><td>${fmtDate(e.date)}</td><td><span class="badge ${e.kind === "practical" ? "badge-info" : "badge-accent"}">${esc2(e.kind)}</span></td><td>${esc2(e.direction)}</td><td class="muted">${esc2(e.description || "\u2014")}</td><td><button class="icon-btn-sm" data-action="deleteSupport" data-arg="${e.id}">${icon("trash", 13)}</button></td></tr>`).join("")}
+      ${events.map((e) => `<tr><td>${fmtDate(e.date)}</td><td><span class="badge ${e.kind === "practical" ? "badge-info" : "badge-accent"}">${esc2(e.kind)}</span></td><td>${esc2(e.direction)}</td><td class="muted">${esc2(e.description || "\u2014")}</td><td><button class="icon-btn-sm" data-action="deleteSupport" data-arg="${esc2(e.id)}">${icon("trash", 13)}</button></td></tr>`).join("")}
     </tbody></table></div></div>` : ""}`;
   }
   function renderContext() {
@@ -10239,7 +10239,7 @@ self.onmessage = function (e) {
     const pid = curPersonId();
     const prefs = sortBy(scope3("preferences"), "date").reverse();
     const cats = [...new Set(getState().data.preferences.map((p) => p.category))];
-    const catSel = peopleList().length ? `<select class="select" data-filter="person"><option value="all">All people</option>${peopleList().map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select>` : "";
+    const catSel = peopleList().length ? `<select class="select" data-filter="person"><option value="all">All people</option>${peopleList().map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select>` : "";
     return `
   <div class="page-head">
     <div><div class="page-title">Preference Engine</div><div class="page-desc">A preference profile built only from evidence you record (with date, source, and confidence). Sensitive personal characteristics are never inferred.</div></div>
@@ -10248,7 +10248,7 @@ self.onmessage = function (e) {
   <div class="filter-bar">${catSel}<select class="select" data-filter="prefcat"><option value="">All categories</option>${cats.map((c) => `<option>${esc2(c)}</option>`).join("")}</select></div>
   ${prefs.length ? `<div class="card"><div class="card-title">Recorded Preferences</div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Person</th><th>Category</th><th>Value</th><th>Evidence</th><th>Source</th><th>Confidence</th><th>Date</th><th></th></tr></thead><tbody>
-      ${prefs.map((p) => `<tr><td>${esc2(personName(p.personId))}</td><td><span class="tag tag-accent">${esc2(p.category)}</span></td><td class="strong">${esc2(p.value)}</td><td class="muted">${esc2(p.evidence || "\u2014")}</td><td class="muted">${esc2(p.sourceType || "\u2014")}</td><td>${confidenceBar(p.confidence || "Low")}</td><td>${fmtDate(p.date)}</td><td><button class="icon-btn-sm" data-action="deletePreference" data-arg="${p.id}">${icon("trash", 13)}</button></td></tr>`).join("")}
+      ${prefs.map((p) => `<tr><td>${esc2(personName(p.personId))}</td><td><span class="tag tag-accent">${esc2(p.category)}</span></td><td class="strong">${esc2(p.value)}</td><td class="muted">${esc2(p.evidence || "\u2014")}</td><td class="muted">${esc2(p.sourceType || "\u2014")}</td><td>${confidenceBar(p.confidence || "Low")}</td><td>${fmtDate(p.date)}</td><td><button class="icon-btn-sm" data-action="deletePreference" data-arg="${esc2(p.id)}">${icon("trash", 13)}</button></td></tr>`).join("")}
     </tbody></table></div>
     <p class="muted" style="margin-top:8px">Each preference requires evidence, a date, a source, and a confidence level. No sensitive personal characteristics are inferred.</p>
   </div>` : emptyState({ icon: "info", title: "No preferences recorded", desc: "Add a preference with its supporting evidence. Example: Coffee \u2014 High confidence, mentioned 4 times.", actions: [`<button class="btn btn-primary" data-action="addPreference">${icon("plus", 15)} Add Preference</button>`] })}`;
@@ -10281,7 +10281,7 @@ self.onmessage = function (e) {
     ${metricCard("Completed", buckets.completed.length, "", "total")}
   </div>
   <div class="tabs">
-    ${tabs.map(([k, l]) => `<button class="tab ${k === tab ? "active" : ""}" data-ctab="${k}">${esc2(l)} <span class="badge badge-info" style="margin-left:4px">${buckets[k].length}</span></button>`).join("")}
+    ${tabs.map(([k, l]) => `<button class="tab ${k === tab ? "active" : ""}" data-ctab="${esc2(k)}">${esc2(l)} <span class="badge badge-info" style="margin-left:4px">${buckets[k].length}</span></button>`).join("")}
   </div>
   ${current.length ? `<div class="list">${current.map(commitmentCenterRow).join("")}</div>` : emptyState({ icon: "reliability", title: `No commitments in ${tab}`, desc: "Record a commitment to track follow-through and reliability.", actions: [`<button class="btn btn-primary" data-action="addCommitment">${icon("plus", 15)} Add Commitment</button>`] })}`;
   }
@@ -10298,12 +10298,12 @@ self.onmessage = function (e) {
       ${c.completed ? `<div class="muted" style="font-size:.74rem;margin-top:4px">${esc2(c.outcome || "")}</div>` : ""}
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
-      ${c.completed || c.cancelled ? `<button class="icon-btn-sm" data-action="deleteCommitment" data-arg="${c.id}" aria-label="Delete">${icon("trash", 13)}</button>` : `
-        <button class="btn btn-sm btn-primary" data-action="completeCommitment" data-arg="${c.id}">Complete</button>
-        <button class="btn btn-sm" data-action="lateCommitment" data-arg="${c.id}">Late</button>
-        <button class="btn btn-sm" data-action="cancelCommitment" data-arg="${c.id}">Cancelled</button>
-        <button class="btn btn-sm" data-action="unknownCommitment" data-arg="${c.id}">Unknown</button>
-        <button class="btn btn-sm" data-action="addFollowUp" data-arg="${c.personId}">Follow up</button>`}
+      ${c.completed || c.cancelled ? `<button class="icon-btn-sm" data-action="deleteCommitment" data-arg="${esc2(c.id)}" aria-label="Delete">${icon("trash", 13)}</button>` : `
+        <button class="btn btn-sm btn-primary" data-action="completeCommitment" data-arg="${esc2(c.id)}">Complete</button>
+        <button class="btn btn-sm" data-action="lateCommitment" data-arg="${esc2(c.id)}">Late</button>
+        <button class="btn btn-sm" data-action="cancelCommitment" data-arg="${esc2(c.id)}">Cancelled</button>
+        <button class="btn btn-sm" data-action="unknownCommitment" data-arg="${esc2(c.id)}">Unknown</button>
+        <button class="btn btn-sm" data-action="addFollowUp" data-arg="${esc2(c.personId)}">Follow up</button>`}
     </div>
   </div>`;
   }
@@ -10315,7 +10315,7 @@ self.onmessage = function (e) {
     return `
   <div class="page-head">
     <div><div class="page-title">Relationship Playbook</div><div class="page-desc">What tends to work with this person in situations similar to yours \u2014 from your recorded evidence. Never a verdict on character.</div></div>
-    ${people.length ? `<div class="head-actions"><button class="btn btn-primary" data-action="strategy" data-arg="${pid || ""}">${icon("spark", 15)} Interaction Strategy</button></div>` : ""}
+    ${people.length ? `<div class="head-actions"><button class="btn btn-primary" data-action="strategy" data-arg="${esc2(pid || "")}">${icon("spark", 15)} Interaction Strategy</button></div>` : ""}
   </div>
   ${pid ? `
   ${playbookCard(pb, fr, pid)}
@@ -10391,7 +10391,7 @@ self.onmessage = function (e) {
     <div class="card-title">Situation Builder</div>
     <p class="muted">Describe an upcoming situation to generate a fingerprint and compare it against history.</p>
     <div class="form-grid">
-      <div class="field"><label>Person</label><select id="sit_person" class="select">${people.map((p) => `<option value="${p.id}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label>Person</label><select id="sit_person" class="select">${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Goal</label><select id="sit_goal" class="select">${["Ask for help", "Give feedback", "Request information", "Collaborate", "Follow up", "Resolve issue", "Reconnect", "Discuss difficult topic", "Other"].map((g) => `<option>${esc2(g)}</option>`).join("")}</select></div>
     </div>
     <div class="form-grid">
@@ -10438,7 +10438,7 @@ self.onmessage = function (e) {
   ${people.length ? `<div class="card section-gap">
     <div class="card-title">Decision Analysis</div>
     <div class="form-grid">
-      <div class="field"><label>Person</label><select id="dl_person" class="select">${people.map((p) => `<option value="${p.id}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label>Person</label><select id="dl_person" class="select">${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Decision</label><input id="dl_decision" class="input" placeholder='e.g. "Should I ask Alex to handle the project section?"'></div>
     </div>
     <div class="form-grid">
@@ -10468,8 +10468,8 @@ self.onmessage = function (e) {
     <div class="ana-block"><div class="ab-label">Observation window</div><p class="muted">${esc2(e.window || "7 days")}</p></div>
     <div class="ana-block"><div class="ab-label">What would change my view?</div><p class="muted">${esc2(e.whatChanges || "\u2014")}</p></div>
     <div class="insight-actions" style="margin-top:10px">
-      ${e.status === "open" ? `<button class="btn btn-sm btn-primary" data-action="experimentOutcome" data-arg="${e.id}">Record outcome</button>` : `<span class="badge badge-ok">Hypothesis: ${esc2(e.updatedView || "Unresolved")}</span>`}
-      <button class="icon-btn-sm" data-action="deleteExperiment" data-arg="${e.id}">${icon("trash", 13)}</button>
+      ${e.status === "open" ? `<button class="btn btn-sm btn-primary" data-action="experimentOutcome" data-arg="${esc2(e.id)}">Record outcome</button>` : `<span class="badge badge-ok">Hypothesis: ${esc2(e.updatedView || "Unresolved")}</span>`}
+      <button class="icon-btn-sm" data-action="deleteExperiment" data-arg="${esc2(e.id)}">${icon("trash", 13)}</button>
     </div>
   </div>`;
   }
@@ -10589,8 +10589,8 @@ self.onmessage = function (e) {
       <div class="muted" style="font-size:.78rem">${esc2(personName(l.personId))} \xB7 ${esc2(l.type)} \xB7 ${esc2(ownerLabel)}${l.dueAt ? " \xB7 due " + fmtDate(l.dueAt) : ""}${l.overdue ? ' \xB7 <span style="color:var(--bad)">overdue</span>' : ""}</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:4px">
-      <button class="btn btn-sm btn-primary" data-action="closeOpenLoop" data-arg="${l.id}">Close</button>
-      <button class="btn btn-sm" data-action="addFollowUp" data-arg="${l.personId}">Follow up</button>
+      <button class="btn btn-sm btn-primary" data-action="closeOpenLoop" data-arg="${esc2(l.id)}">Close</button>
+      <button class="btn btn-sm" data-action="addFollowUp" data-arg="${esc2(l.personId)}">Follow up</button>
     </div>
   </div>`;
   }
@@ -10640,8 +10640,8 @@ self.onmessage = function (e) {
     ${d.decisionSnapshot ? `<div class="ana-block"><div class="ab-label">Decision-time evidence snapshot <span class="ctl muted">immutable</span></div><p class="muted" style="font-size:.78rem">${esc2(d.decisionSnapshot.comparable || 0)} comparable situations \xB7 evidence ${esc2(d.decisionSnapshot.evidenceQuality || "\u2014")}${d.decisionSnapshot.signals && d.decisionSnapshot.signals.length ? " \xB7 signals: " + d.decisionSnapshot.signals.map((s) => s.name).slice(0, 2).join(", ") : ""}</p></div>` : ""}
     ${d.lesson ? `<div class="ana-block"><div class="ab-label">Lesson</div><p style="font-size:.82rem">${esc2(d.lesson)}</p></div>` : ""}
     <div class="insight-actions" style="margin-top:10px">
-      ${pending ? `<button class="btn btn-sm btn-primary" data-action="decisionOutcome" data-arg="${d.id}">Record outcome</button><button class="btn btn-sm" data-action="decisionBrief" data-arg="${d.id}">Brief</button>` : `<span class="badge ${qBadge}">Outcome: ${esc2(q)}</span><span class="badge badge-ok">Accuracy: ${esc2(d.supported ? "supported" : "not supported")}</span>`}
-      <button class="icon-btn-sm" data-action="deleteDecision" data-arg="${d.id}" aria-label="Delete">${icon("trash", 13)}</button>
+      ${pending ? `<button class="btn btn-sm btn-primary" data-action="decisionOutcome" data-arg="${esc2(d.id)}">Record outcome</button><button class="btn btn-sm" data-action="decisionBrief" data-arg="${esc2(d.id)}">Brief</button>` : `<span class="badge ${qBadge}">Outcome: ${esc2(q)}</span><span class="badge badge-ok">Accuracy: ${esc2(d.supported ? "supported" : "not supported")}</span>`}
+      <button class="icon-btn-sm" data-action="deleteDecision" data-arg="${esc2(d.id)}" aria-label="Delete">${icon("trash", 13)}</button>
     </div>
   </div>`;
   }
@@ -10697,7 +10697,7 @@ self.onmessage = function (e) {
     <div class="head-actions"><button class="btn btn-primary" data-action="addMemory">${icon("plus", 15)} Add Memory</button></div>
   </div>
   <div class="filter-bar">
-    ${peopleList().length ? `<select class="select" data-filter="person"><option value="all">All people</option>${peopleList().map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select>` : ""}
+    ${peopleList().length ? `<select class="select" data-filter="person"><option value="all">All people</option>${peopleList().map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select>` : ""}
     <select class="select" data-filter="memcat"><option value="">All categories</option>${cats.map((c) => `<option>${esc2(c)}</option>`).join("")}</select>
   </div>
   ${mems.length ? `<div class="memory-grid grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">${mems.map(memoryCard).join("")}</div>` : emptyState({ icon: "journal", title: "No memories yet", desc: "Save useful information people voluntarily share \u2014 important plans, preferences, topics \u2014 so you can remember it later and follow up thoughtfully.", actions: [`<button class="btn btn-primary" data-action="addMemory">${icon("plus", 15)} Add Memory</button>`] })}`;
@@ -10709,14 +10709,14 @@ self.onmessage = function (e) {
     return `<div class="card ${m.reminderDate && m.reminderDate.slice(0, 10) === now && m.status !== "done" && m.status !== "archived" ? "insight-card insight-alert" : ""}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <div><span class="tag tag-accent">${esc2(m.category || "Other")}</span><span class="muted" style="font-size:.74rem"> \xB7 ${esc2(personName(m.personId))}</span> ${statusBadge2}</div>
-      <button class="icon-btn-sm" data-action="deleteMemory" data-arg="${m.id}">${icon("trash", 13)}</button>
+      <button class="icon-btn-sm" data-action="deleteMemory" data-arg="${esc2(m.id)}">${icon("trash", 13)}</button>
     </div>
     <p style="margin-top:8px;color:var(--text-strong)">${esc2(m.info)}</p>
     <div class="muted" style="font-size:.76rem">Learned ${fmtDate(m.date)}${m.lastConfirmed ? " \xB7 confirmed " + fmtDate(m.lastConfirmed) : ""}${m.reminderDate ? " \xB7 reminder " + fmtDate(m.reminderDate) : ""}</div>
     ${m.status !== "archived" ? `<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-primary" data-action="confirmMemory" data-arg="${m.id}">${icon("check", 13)} Confirm</button>
-      ${m.status !== "done" ? `<button class="btn btn-sm" data-action="completeMemory" data-arg="${m.id}">Mark remembered</button>` : ""}
-      <button class="btn btn-sm" data-action="archiveMemory" data-arg="${m.id}">Archive</button>
+      <button class="btn btn-sm btn-primary" data-action="confirmMemory" data-arg="${esc2(m.id)}">${icon("check", 13)} Confirm</button>
+      ${m.status !== "done" ? `<button class="btn btn-sm" data-action="completeMemory" data-arg="${esc2(m.id)}">Mark remembered</button>` : ""}
+      <button class="btn btn-sm" data-action="archiveMemory" data-arg="${esc2(m.id)}">Archive</button>
     </div>` : ""}
   </div>`;
   }
@@ -10805,11 +10805,11 @@ self.onmessage = function (e) {
   <div class="grid grid-2 section-gap">
     <div class="card">
       <div class="card-title">Surprise Log <span class="ctl"><button class="link-btn" data-action="addSurprise">+ Log surprise</button></span></div>
-      ${getState().data.surprises.length ? `<div class="list">${sortBy(getState().data.surprises, "date").reverse().slice(0, 6).map((s) => `<div class="list-item" style="flex-direction:column;align-items:flex-start"><div style="display:flex;width:100%;justify-content:space-between"><div class="muted" style="font-size:.74rem">${fmtDate(s.date)} \xB7 ${esc2(personName(s.personId))}</div><button class="icon-btn-sm" data-action="deleteSurprise" data-arg="${s.id}" aria-label="Delete">${icon("trash", 13)}</button></div><div>Expected: <span class="muted">${esc2(s.expected)}</span> \xB7 Actual: <span class="strong">${esc2(s.actual)}</span></div><div class="muted" style="font-size:.78rem">Cause: ${esc2(s.cause || "Unknown")}</div></div>`).join("")}</div>` : `<p class="muted">Log moments when actual behavior differed from your prediction. This improves future predictions.</p>`}
+      ${getState().data.surprises.length ? `<div class="list">${sortBy(getState().data.surprises, "date").reverse().slice(0, 6).map((s) => `<div class="list-item" style="flex-direction:column;align-items:flex-start"><div style="display:flex;width:100%;justify-content:space-between"><div class="muted" style="font-size:.74rem">${fmtDate(s.date)} \xB7 ${esc2(personName(s.personId))}</div><button class="icon-btn-sm" data-action="deleteSurprise" data-arg="${esc2(s.id)}" aria-label="Delete">${icon("trash", 13)}</button></div><div>Expected: <span class="muted">${esc2(s.expected)}</span> \xB7 Actual: <span class="strong">${esc2(s.actual)}</span></div><div class="muted" style="font-size:.78rem">Cause: ${esc2(s.cause || "Unknown")}</div></div>`).join("")}</div>` : `<p class="muted">Log moments when actual behavior differed from your prediction. This improves future predictions.</p>`}
     </div>
     <div class="card">
       <div class="card-title">Change of Mind <span class="ctl"><button class="link-btn" data-action="addChangeOfMind">+ Record change</button></span></div>
-      ${getState().data.changeOfMinds.length ? `<div class="list">${sortBy(getState().data.changeOfMinds, "date").reverse().slice(0, 6).map((c) => `<div class="list-item" style="flex-direction:column;align-items:flex-start"><div style="display:flex;width:100%;justify-content:space-between"><div class="muted" style="font-size:.74rem">${fmtDate(c.date)}</div><button class="icon-btn-sm" data-action="deleteChangeOfMind" data-arg="${c.id}" aria-label="Delete">${icon("trash", 13)}</button></div><div><span class="muted">Before:</span> ${esc2(c.previous)}</div><div><span class="strong">After:</span> ${esc2(c.current)}</div></div>`).join("")}</div>` : `<p class="muted">Record when new evidence changed your interpretation. This becomes part of your learning history.</p>`}
+      ${getState().data.changeOfMinds.length ? `<div class="list">${sortBy(getState().data.changeOfMinds, "date").reverse().slice(0, 6).map((c) => `<div class="list-item" style="flex-direction:column;align-items:flex-start"><div style="display:flex;width:100%;justify-content:space-between"><div class="muted" style="font-size:.74rem">${fmtDate(c.date)}</div><button class="icon-btn-sm" data-action="deleteChangeOfMind" data-arg="${esc2(c.id)}" aria-label="Delete">${icon("trash", 13)}</button></div><div><span class="muted">Before:</span> ${esc2(c.previous)}</div><div><span class="strong">After:</span> ${esc2(c.current)}</div></div>`).join("")}</div>` : `<p class="muted">Record when new evidence changed your interpretation. This becomes part of your learning history.</p>`}
     </div>
   </div>
 
@@ -10821,7 +10821,7 @@ self.onmessage = function (e) {
   function briefingTopicsSection(s) {
     const topics = { openLoops: true, commitments: true, predictions: true, people: true, changes: true, memories: false, judgment: true, ...s.briefingTopics || {} };
     const cats = [["openLoops", "Open loops"], ["commitments", "Commitments"], ["predictions", "Predictions"], ["people", "People"], ["changes", "Changes"], ["memories", "Memories"], ["judgment", "Your judgment"]];
-    return cats.map(([k, l]) => `<div class="check"><input type="checkbox" class="briefTopic" data-topic="${k}" ${topics[k] ? "checked" : ""}><div class="ch-label">${l}</div></div>`).join("");
+    return cats.map(([k, l]) => `<div class="check"><input type="checkbox" class="briefTopic" data-topic="${esc2(k)}" ${topics[k] ? "checked" : ""}><div class="ch-label">${l}</div></div>`).join("");
   }
   function automationRulesSection(s) {
     const rules = { ...DEFAULT_RULES, ...s.automationRules || {} };
@@ -10835,7 +10835,7 @@ self.onmessage = function (e) {
       ["baselineDeviation", "Recent activity leaves the baseline", "Notify"],
       ["playbookUpdate", "Comparable outcomes accumulate", "Suggest reviewing the playbook"]
     ];
-    return cats.map(([k, when, then]) => `<div class="check"><input type="checkbox" class="autoRule" data-rule="${k}" ${rules[k] ? "checked" : ""}><div><div class="ch-label">WHEN ${when}</div><div class="ch-sub">THEN ${then}</div></div></div>`).join("");
+    return cats.map(([k, when, then]) => `<div class="check"><input type="checkbox" class="autoRule" data-rule="${esc2(k)}" ${rules[k] ? "checked" : ""}><div><div class="ch-label">WHEN ${when}</div><div class="ch-sub">THEN ${then}</div></div></div>`).join("");
   }
   function confBiasSection() {
     const cb = confirmationBias();
@@ -10860,7 +10860,7 @@ self.onmessage = function (e) {
   function expectationSection() {
     const exps = sortBy(getState().data.expectations || [], "createdAt").reverse();
     if (!exps.length) return `<p class="muted">Record an expectation before an interaction to compare it with reality later. This is how you learn whether your judgment is calibrated.</p><button class="btn btn-sm" data-action="expectation" style="margin-top:8px">${icon("plus", 13)} Record expectation</button>`;
-    return `<div class="list">${exps.slice(0, 5).map((e) => `<div class="list-item" style="align-items:flex-start"><div style="flex:1"><div class="strong" style="font-size:.85rem">${esc2(e.text)}</div><div class="muted" style="font-size:.74rem">${esc2(personName(e.personId))} \xB7 conf ${esc2(e.confidence)}% \xB7 ${e.status === "open" ? "open" : "resolved: " + esc2(e.result || "")}</div></div>${e.status === "open" ? `<button class="btn btn-sm" data-action="resolveExpectation" data-arg="${e.id}">Resolve</button>` : ""}</div>`).join("")}</div>`;
+    return `<div class="list">${exps.slice(0, 5).map((e) => `<div class="list-item" style="align-items:flex-start"><div style="flex:1"><div class="strong" style="font-size:.85rem">${esc2(e.text)}</div><div class="muted" style="font-size:.74rem">${esc2(personName(e.personId))} \xB7 conf ${esc2(e.confidence)}% \xB7 ${e.status === "open" ? "open" : "resolved: " + esc2(e.result || "")}</div></div>${e.status === "open" ? `<button class="btn btn-sm" data-action="resolveExpectation" data-arg="${esc2(e.id)}">Resolve</button>` : ""}</div>`).join("")}</div>`;
   }
   function lessonsSection() {
     const lessons = sortBy(getState().data.lessons || [], "createdAt").reverse();
@@ -11064,8 +11064,8 @@ self.onmessage = function (e) {
     const causes = ["Context changed", "Wrong comparison group", "Too little evidence", "Unexpected event", "My assumption was incorrect", "Unknown"];
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="sp_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="sp_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="sp_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="sp_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="form-grid">
     <div class="field"><label>Expected <span class="req">*</span></label><input id="sp_exp" class="input" required placeholder="e.g. Positive response"></div>
@@ -11103,8 +11103,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person</label><select id="cm_person" class="select"><option value="">Optional</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="cm_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person</label><select id="cm_person" class="select"><option value="">Optional</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="cm_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="field"><label>Previous interpretation <span class="req">*</span></label><textarea id="cm_prev" class="textarea" required placeholder="What I used to think"></textarea></div>
   <div class="field"><label>New interpretation <span class="req">*</span></label><textarea id="cm_new" class="textarea" required placeholder="What I now think"></textarea></div>
@@ -11139,8 +11139,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const metrics = [["reliability", "Reliability"], ["reciprocity", "Reciprocity"], ["initiative", "Initiative"], ["communication", "Communication"], ["boundary", "Boundary respect"], ["supportiveness", "Supportiveness"]];
     const body = `<p class="muted">Every score is sample-aware and traceable to supporting and counter evidence from your records.</p>
-  <div class="field"><label>Person</label><select class="select" id="ee_person">${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
-  <div class="field"><label>Metric</label><select class="select" id="ee_metric">${metrics.map(([k, l]) => `<option value="${k}">${esc2(l)}</option>`).join("")}</select></div>
+  <div class="field"><label>Person</label><select class="select" id="ee_person">${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
+  <div class="field"><label>Metric</label><select class="select" id="ee_metric">${metrics.map(([k, l]) => `<option value="${esc2(k)}">${esc2(l)}</option>`).join("")}</select></div>
   <button class="btn btn-primary" id="ee_go">${icon("eye", 15)} Explore</button>
   <div id="ee_out" style="margin-top:14px"></div>`;
     const foot = document.createElement("div");
@@ -11496,7 +11496,7 @@ self.onmessage = function (e) {
     const people = peopleList();
     const pid = preselectId || (getState().contextPersonId !== "all" ? getState().contextPersonId : people[0] && people[0].id);
     const body = `<p class="muted">Before any external AI processing, review exactly what will be sent. You can exclude sensitive notes or anonymize names.</p>
-  <div class="field"><label>Person (context)</label><select id="aip_person" class="select">${people.map((p) => `<option value="${p.id}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+  <div class="field"><label>Person (context)</label><select id="aip_person" class="select">${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
   <div class="field"><label>Question / task</label><input id="aip_q" class="input" placeholder="e.g. Should I ask this person for help?"></div>
   <div class="check"><input type="checkbox" id="aip_anon"><div><div class="ch-label">Anonymize before AI</div><div class="ch-sub">Use anonymized names (Alex \u2192 Person A) when sending data.</div></div></div>
   <div class="check"><input type="checkbox" id="aip_redact"><div><div class="ch-label">Redact sensitive details</div><div class="ch-sub">Detect and replace health, religion, political, contact, financial and other sensitive terms with [redacted].</div></div></div>
@@ -11557,7 +11557,7 @@ self.onmessage = function (e) {
     const s = getState().settings;
     const body = `<p class="muted">Add an optional local lock so the app requires a PIN to open. This uses simple local verification only \u2014 not encryption.</p>
   <div class="field"><label>Lock mode</label><select id="lock_mode" class="select"><option value="none" ${!s.lockMode || s.lockMode === "none" ? "selected" : ""}>No lock</option><option value="pin" ${s.lockMode === "pin" ? "selected" : ""}>PIN</option></select></div>
-  <div class="field"><label>PIN (4\u20138 digits)</label><input id="lock_pin" class="input" type="password" inputmode="numeric" maxlength="8" placeholder="${s.lockPin ? "Keep existing or change" : "Set a PIN"}"></div>
+  <div class="field"><label>PIN (4\u20138 digits)</label><input id="lock_pin" class="input" type="password" inputmode="numeric" maxlength="8" placeholder="${esc2(s.lockPin ? "Keep existing or change" : "Set a PIN")}"></div>
   <p class="muted">PERSONA AI does not claim military-grade encryption. The lock is a local convenience to prevent casual access.</p>`;
     const foot = document.createElement("div");
     const cancel = document.createElement("button");
@@ -11633,7 +11633,7 @@ self.onmessage = function (e) {
       title: "Ask PERSONA AI",
       subtitle: "Evidence-based answers with citations from your records",
       size: "modal-lg",
-      body: `<div class="field"><label>Person (context)</label><select class="select" id="qPerson">${people.length ? people.map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc2(p.name)}</option>`).join("") : `<option value="">No people yet</option>`}</select></div>
+      body: `<div class="field"><label>Person (context)</label><select class="select" id="qPerson">${people.length ? people.map((p) => `<option value="${esc2(p.id)}" ${p.id === sel ? "selected" : ""}>${esc2(p.name)}</option>`).join("") : `<option value="">No people yet</option>`}</select></div>
     <div class="field"><label>Your question</label><input class="input" id="qText" placeholder='e.g. "Should I ask Alex for help?"'></div>
     <button class="btn btn-primary" id="qAsk">${icon("spark", 15)} Ask</button>
     <button class="btn btn-ghost" id="qPreview">${icon("eye", 15)} AI preview</button>
@@ -11683,7 +11683,7 @@ self.onmessage = function (e) {
       body: `
     <p class="muted">The system finds supporting evidence, counter-evidence, and missing evidence for a hypothesis. It attempts to reduce confirmation bias.</p>
     <div class="field"><label>Hypothesis to challenge</label><input class="input" id="chHyp" placeholder='e.g. "This person rarely reciprocates"' value="${esc2(person ? "This person reciprocates reliably" : "")}"></div>
-    <div class="field"><label>Person</label><select class="select" id="chPerson">${peopleList().map((p) => `<option value="${p.id}" ${person && p.id === person.id ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person</label><select class="select" id="chPerson">${peopleList().map((p) => `<option value="${esc2(p.id)}" ${person && p.id === person.id ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <button class="btn btn-primary" id="chGo">${icon("scale", 15)} Challenge</button>
     <div id="chResult" style="margin-top:14px"></div>`
     });
@@ -11772,7 +11772,7 @@ self.onmessage = function (e) {
   ${gaps.recommendations.length ? `<div class="card" style="margin-bottom:12px"><div class="card-title">Evidence Gap Recommendations <span class="ctl">Quality: ${esc2(gaps.quality)}</span></div>
     <div class="list">${gaps.recommendations.map((g) => `<div class="list-item" style="flex-direction:column;align-items:flex-start"><div class="strong" style="font-size:.85rem">${esc2(g.context)}</div><div class="muted" style="font-size:.8rem">Current: ${g.current} comparable \xB7 Recommended: ${esc2(g.recommended)} more</div><div class="muted" style="font-size:.78rem">Why: ${esc2(g.why)}</div></div>`).join("")}</div></div>` : ""}
   <div class="card"><div class="card-title">Suggested Next Observations</div>
-  <div class="list">${sug.map((s) => `<div class="list-item"><div style="flex:1"><div class="strong">${esc2(s.title)}</div><div class="muted">${esc2(s.desc)}</div></div><button class="btn btn-sm" data-action="createObsReminder" data-arg="${person.id}" data-title="${esc2(s.title)}">${icon("bell", 13)} Remind me</button></div>`).join("")}</div></div>`;
+  <div class="list">${sug.map((s) => `<div class="list-item"><div style="flex:1"><div class="strong">${esc2(s.title)}</div><div class="muted">${esc2(s.desc)}</div></div><button class="btn btn-sm" data-action="createObsReminder" data-arg="${esc2(person.id)}" data-title="${esc2(s.title)}">${icon("bell", 13)} Remind me</button></div>`).join("")}</div></div>`;
     openModal({ title: `What should I observe next?`, subtitle: person.name, size: "modal-lg", body });
   }
   function openReachOut(personId) {
@@ -11855,7 +11855,7 @@ self.onmessage = function (e) {
       subtitle: "Research-style structure \u2014 choose a template",
       size: "modal-lg",
       body: `<div class="form-grid">
-      <div class="field"><label>Person</label><select class="select" id="repSel">${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+      <div class="field"><label>Person</label><select class="select" id="repSel">${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Template</label><select class="select" id="repTpl">
         <option value="person">Behavioral Observation Report</option>
         <option value="relationship">Relationship Report</option>
@@ -11971,7 +11971,7 @@ self.onmessage = function (e) {
     openModal({ title: title + " \xB7 Help & guidance", subtitle: "How to use this screen", size: "modal-lg", body, footer: foot });
   }
   function openAllTopics() {
-    const body = `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${Object.entries(VIEW_GUIDANCE).map(([k, g]) => `<div class="card" style="cursor:pointer" data-action="openHelp" data-arg="${k}"><div class="strong">${esc2(g.title)}</div><div class="muted" style="font-size:.78rem;margin-top:4px">${esc2(g.body.replace(/<[^>]+>/g, "").slice(0, 90))}\u2026</div></div>`).join("")}</div>`;
+    const body = `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${Object.entries(VIEW_GUIDANCE).map(([k, g]) => `<div class="card" style="cursor:pointer" data-action="openHelp" data-arg="${esc2(k)}"><div class="strong">${esc2(g.title)}</div><div class="muted" style="font-size:.78rem;margin-top:4px">${esc2(g.body.replace(/<[^>]+>/g, "").slice(0, 90))}\u2026</div></div>`).join("")}</div>`;
     const foot = document.createElement("div");
     foot.appendChild(Object.assign(document.createElement("button"), { className: "btn", textContent: "Close", onclick: () => closeModal() }));
     openModal({ title: "Guidance \u2014 all topics", subtitle: "Choose a screen for detailed help", size: "modal-lg", body, footer: foot });
@@ -11982,7 +11982,7 @@ self.onmessage = function (e) {
     const body = `
   <p class="muted">"What happens if\u2026" \u2014 retrieves comparable past situations and returns a sample-aware likelihood. Historical evidence is clearly distinguished from future prediction.</p>
   <div class="form-grid">
-    <div class="field"><label>Person</label><select id="sim_person" class="select"><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person</label><select id="sim_person" class="select"><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Scenario</label><select id="sim_scenario" class="select">${scenarios.map((s) => `<option>${esc2(s)}</option>`).join("")}</select></div>
   </div>
   <button class="btn btn-primary" id="sim_go">${icon("spark", 15)} Simulate</button>
@@ -12039,7 +12039,7 @@ self.onmessage = function (e) {
       }
       const parsed = parseCapture(input);
       const personRow = parsed.personId ? `<div class="list-item"><span class="tag tag-accent">Person</span><span>${esc2(personName(parsed.personId))}</span></div>` : `<div class="list-item"><span class="tag badge-warn">Person</span><span class="muted">Not detected \u2014 select below</span></div>`;
-      const peopleSel = people.length ? `<select class="select" id="uc_person" style="width:100%;margin-top:6px">${people.map((p) => `<option value="${p.id}" ${p.id === parsed.personId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select>` : `<p class="muted">Add a person first.</p>`;
+      const peopleSel = people.length ? `<select class="select" id="uc_person" style="width:100%;margin-top:6px">${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === parsed.personId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select>` : `<p class="muted">Add a person first.</p>`;
       m.bodyEl.querySelector("#uc_result").innerHTML = `<div class="analysis"><div class="ana-head">PROPOSED RECORD \xB7 confidence ${esc2(parsed.confidence)}</div><div class="ana-body">
       <div class="list">
         ${personRow.replace(`</div>`, `</div>${peopleSel}`)}
@@ -12075,7 +12075,7 @@ self.onmessage = function (e) {
     const tags = ["Help", "Initiative", "Follow-through", "Listening", "Question", "Follow-up", "Boundary", "Support", "Conflict", "Commitment", "Other"];
     const advancedFields = `
     <div class="form-grid">
-      <div class="field"><label>Date/time</label><input class="input" id="qc_date" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+      <div class="field"><label>Date/time</label><input class="input" id="qc_date" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
       <div class="field"><label>Who initiated?</label><select class="select" id="qc_init"><option>Me</option><option>Them</option><option>Mutual</option><option>Unclear</option></select></div>
     </div>
     <div class="form-grid">
@@ -12088,7 +12088,7 @@ self.onmessage = function (e) {
     const body = `
     <p class="muted" style="margin-bottom:12px">Log an interaction in 15\u201330 seconds. Separate what happened (fact) from what you think it means (interpretation).</p>
     <div class="field"><label>Person <span class="req">*</span></label>
-      <select id="qc_person" class="select" required><option value="">Search / select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+      <select id="qc_person" class="select" required><option value="">Search / select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>What happened? <span class="req">*</span></label><textarea id="qc_what" class="textarea" required placeholder='e.g. "Asked for help with the report. They said yes and sent it the next morning."'></textarea></div>
     <div class="field"><label>Tags</label>
       <div class="tag-grid" data-taggroup="qc_tags">${tags.map((t) => `<button type="button" class="tag-opt" data-tagopt="${esc2(t)}" data-group="qc_tags">${esc2(t)}</button>`).join("")}<input class="tag-input" placeholder="+ add custom" data-customtag="qc_tags"></div>
@@ -12156,12 +12156,12 @@ self.onmessage = function (e) {
     const cats = ["Personal", "Preferences", "Work / Study", "Conversations", "Important Dates", "Other"];
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="mm_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="mm_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Category</label><select id="mm_cat" class="select">${cats.map((c) => `<option>${esc2(c)}</option>`).join("")}</select></div>
   </div>
   <div class="field"><label>Information <span class="req">*</span></label><textarea id="mm_info" class="textarea" required placeholder='e.g. "Alex mentioned his exam is this week."'></textarea></div>
   <div class="form-grid">
-    <div class="field"><label>Date learned</label><input id="mm_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Date learned</label><input id="mm_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
     <div class="field"><label>Reminder date (optional)</label><input id="mm_rem" class="input" type="date"></div>
   </div>
   <p class="muted">Store only information the person voluntarily shared that is relevant to you. PERSONA AI does not infer sensitive personal characteristics.</p>` : `<div class="empty"><p>Add a person first.</p></div>`}`;
@@ -12220,7 +12220,7 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="dc_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="dc_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>My confidence</label><select id="dc_conf" class="select"><option>Low</option><option selected>Moderate</option><option>High</option></select></div>
   </div>
   <div class="field"><label>What am I deciding? <span class="req">*</span></label><textarea id="dc_question" class="textarea" required placeholder='e.g. "Should I ask Alex to help me with this project?"'></textarea></div>
@@ -12475,8 +12475,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="fu_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Due date</label><input id="fu_due" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="fu_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Due date</label><input id="fu_due" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="field"><label>Follow-up <span class="req">*</span></label><textarea id="fu_text" class="textarea" required placeholder='e.g. "Check in on Alex about the report."'></textarea></div>` : `<div class="empty"><p>Add a person first.</p></div>`}`;
     const foot = document.createElement("div");
@@ -12691,7 +12691,7 @@ self.onmessage = function (e) {
     const types = ["Commitment", "Follow-up", "Unanswered question", "Decision", "Prediction", "Unresolved situation", "Other"];
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="ol_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="ol_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Type</label><select id="ol_type" class="select">${types.map((t) => `<option>${esc2(t)}</option>`).join("")}</select></div>
   </div>
   <div class="field"><label>Open loop <span class="req">*</span></label><textarea id="ol_text" class="textarea" required placeholder='e.g. "I promised to send the draft", "Waiting for their reply about the project"'></textarea></div>
@@ -12752,7 +12752,7 @@ self.onmessage = function (e) {
     const goals = ["Ask for help", "Resolve misunderstanding", "Follow up", "Check in", "Make a decision", "Simply reconnect", "Share information"];
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="pp_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="pp_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Goal</label><select id="pp_goal" class="select">${goals.map((g) => `<option>${esc2(g)}</option>`).join("")}</select></div>
   </div>
   <button class="btn btn-primary" id="pp_go">${icon("spark", 15)} Prepare brief</button>
@@ -12779,8 +12779,8 @@ self.onmessage = function (e) {
       m.bodyEl.querySelector("#pp_out").innerHTML = `<div class="analysis"><div class="ana-head">PREPARE FOR ${esc2(personName(pid).toUpperCase())} \xB7 ${esc2(goal)}</div><div class="ana-body">
       <div class="list">
         <div class="list-item"><span class="tag tag-accent">Last interaction</span><span>${last ? last.daysAgo + " day(s) ago" : "none recorded"}</span></div>
-        ${loops.length ? `<div class="list-item"><span class="tag badge-warn">Open loops</span><span>${loops.slice(0, 4).map((l) => l.text).join("; ")}</span></div>` : ""}
-        ${mems.length ? `<div class="list-item"><span class="tag tag-accent">Remember</span><span>${mems.map((m2) => m2.info).join("; ")}</span></div>` : ""}
+        ${loops.length ? `<div class="list-item"><span class="tag badge-warn">Open loops</span><span>${loops.slice(0, 4).map((l) => esc2(l.text)).join("; ")}</span></div>` : ""}
+        ${mems.length ? `<div class="list-item"><span class="tag tag-accent">Remember</span><span>${mems.map((m2) => esc2(m2.info)).join("; ")}</span></div>` : ""}
         ${big ? `<div class="list-item"><span class="tag badge-warn">Recent change</span><span>${big.name} ${big.delta >= 0 ? "+" : ""}${big.delta}%</span></div>` : ""}
         ${baseline.avgResponseHours != null ? `<div class="list-item"><span class="tag tag-accent">Baseline</span><span>~${baseline.avgResponseHours}h typical response \xB7 ${baseline.interactionFreqPerWeek}/wk</span></div>` : ""}
       </div>
@@ -12788,7 +12788,7 @@ self.onmessage = function (e) {
       <div class="ana-block"><div class="ab-label">Recommended approach</div><p>${esc2(comp.recommendation)}</p></div>
       <div class="ana-block"><div class="ab-label">Things not to overinterpret</div><p class="muted">${eq.level === "Weak" || eq.level === "Insufficient" ? "Current evidence is limited." : "Treat any single event as noteworthy but isolated until more comparable evidence appears."}</p></div>
       <div class="ana-block"><div class="ab-label">Confidence</div>${confidenceBar(comp.confidence)}</div>
-      <button class="btn btn-sm" data-action="expectation" data-arg="${pid}" style="margin-top:8px">${icon("predictions", 13)} Record my expectation</button>
+      <button class="btn btn-sm" data-action="expectation" data-arg="${esc2(pid)}" style="margin-top:8px">${icon("predictions", 13)} Record my expectation</button>
     </div></div>`;
     };
     m.bodyEl.querySelector("#pp_go").addEventListener("click", run);
@@ -12832,7 +12832,7 @@ self.onmessage = function (e) {
     const body = `
   <p class="muted">After an interaction, answer the minimum. PERSONA proposes structured records \u2014 you review before saving.</p>
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person</label><select id="deb_person" class="select">${people.map((p) => `<option value="${p.id}" ${p.id === pid0 ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person</label><select id="deb_person" class="select">${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === pid0 ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>What happened?</label><input id="deb_what" class="input" placeholder='e.g. "Sarah liked the draft and said she will review it tomorrow."'></div>
   </div>
   <div class="field"><label>What was actually observed?</label><textarea id="deb_obs" class="textarea" placeholder="Factual description"></textarea></div>
@@ -12950,7 +12950,7 @@ self.onmessage = function (e) {
   function openLessonForm() {
     const people = peopleList();
     const body = `
-  ${people.length ? `<div class="field"><label>Person (optional)</label><select id="ls_person" class="select"><option value="">General</option>${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>` : ""}
+  ${people.length ? `<div class="field"><label>Person (optional)</label><select id="ls_person" class="select"><option value="">General</option>${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>` : ""}
   <div class="field"><label>Lesson <span class="req">*</span></label><textarea id="ls_text" class="textarea" required placeholder='e.g. "Sarah responds better when I ask directly."'></textarea><div class="hint">A neutral, user-entered lesson \u2014 not an identity label.</div></div>
   <div class="field"><label>Source (optional)</label><input id="ls_source" class="input" placeholder="e.g. Decision outcome, prediction error"></div>`;
     const foot = document.createElement("div");
@@ -13009,7 +13009,7 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `<p class="muted">Describe an upcoming situation to get a similarity score and comparable cases.</p>
   <div class="form-grid">
-    <div class="field"><label>Person</label><select id="sc_person" class="select">${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person</label><select id="sc_person" class="select">${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Goal</label><select id="sc_goal" class="select">${["Ask for help", "Give feedback", "Request information", "Collaborate", "Follow up", "Resolve issue", "Reconnect", "Other"].map((g) => `<option>${esc2(g)}</option>`).join("")}</select></div>
   </div>
   <div class="form-grid">
@@ -13043,7 +13043,7 @@ self.onmessage = function (e) {
   function openDecisionLab() {
     const people = peopleList();
     const body = `<div class="form-grid">
-    <div class="field"><label>Person</label><select id="dlm_person" class="select">${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person</label><select id="dlm_person" class="select">${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Decision</label><input id="dlm_decision" class="input" placeholder="What are you deciding?"></div>
   </div>
   <div class="form-grid">
@@ -13092,7 +13092,7 @@ self.onmessage = function (e) {
     const people = peopleList();
     const goals = ["Maintain contact", "Improve communication", "Collaborate better", "Build professional trust", "Reduce misunderstandings", "Remember important details", "Maintain boundaries", "Reconnect"];
     const body = `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="rg_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="rg_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === pid ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Goal</label><select id="rg_goal" class="select">${goals.map((g) => `<option>${esc2(g)}</option>`).join("")}</select></div>
   </div>
   <div class="field"><label>Notes</label><textarea id="rg_notes" class="textarea" placeholder="Optional"></textarea></div>`;
@@ -13123,7 +13123,7 @@ self.onmessage = function (e) {
   function openExperimentForm() {
     const people = peopleList();
     const body = `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="ex_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="ex_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Observation window</label><select id="ex_window" class="select"><option>7 days</option><option>14 days</option><option>30 days</option></select></div>
   </div>
   <div class="field"><label>Question <span class="req">*</span></label><textarea id="ex_question" class="textarea" required placeholder='e.g. "Will Alex follow through on a normal medium-sized request?"'></textarea></div>
@@ -13258,9 +13258,9 @@ self.onmessage = function (e) {
   function tagInput(label, id, options, selected = []) {
     const sel = selected || [];
     return `<div class="field"><label>${label}</label>
-    <div class="tag-grid" id="${id}" data-taggroup="${id}">
-      ${options.map((o) => `<button type="button" class="tag-opt ${sel.includes(o) ? "on" : ""}" data-tagopt="${esc2(o)}" data-group="${id}">${esc2(o)}</button>`).join("")}
-      <input class="tag-input" placeholder="+ add custom tag" data-customtag="${id}">
+    <div class="tag-grid" id="${esc2(id)}" data-taggroup="${esc2(id)}">
+      ${options.map((o) => `<button type="button" class="tag-opt ${sel.includes(o) ? "on" : ""}" data-tagopt="${esc2(o)}" data-group="${esc2(id)}">${esc2(o)}</button>`).join("")}
+      <input class="tag-input" placeholder="+ add custom tag" data-customtag="${esc2(id)}">
     </div></div>`;
   }
   function bindTagGroup() {
@@ -13367,11 +13367,11 @@ self.onmessage = function (e) {
     const it = interaction || {};
     const body = `
   ${peopleList().length ? `<div class="form-grid">
-    <div class="field"><label for="if_person">Person <span class="req">*</span></label><select id="if_person" class="select" required><option value="">Select\u2026</option>${peopleList().map((p) => `<option value="${p.id}" ${it.personId === p.id || p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label for="if_person">Person <span class="req">*</span></label><select id="if_person" class="select" required><option value="">Select\u2026</option>${peopleList().map((p) => `<option value="${esc2(p.id)}" ${it.personId === p.id || p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label for="if_type">Interaction type</label><select id="if_type" class="select">${INTERACTION_TYPES.map((t) => `<option ${it.type === t ? "selected" : ""}>${esc2(t)}</option>`).join("")}</select></div>
   </div>
   <div class="form-grid">
-    <div class="field"><label for="if_date">Date</label><input id="if_date" class="input" type="date" value="${it.date ? new Date(it.date).toISOString().slice(0, 10) : ""}"></div>
+    <div class="field"><label for="if_date">Date</label><input id="if_date" class="input" type="date" value="${esc2(it.date ? new Date(it.date).toISOString().slice(0, 10) : "")}"></div>
     <div class="field"><label for="if_loc">Location / context</label><input id="if_loc" class="input" value="${esc2(it.location || "")}" placeholder="e.g. office, online"></div>
   </div>
   <div class="field"><label for="if_obs">What I observed <span class="req">*</span></label><textarea id="if_obs" class="textarea" required placeholder='e.g. "I asked whether they could help with the report. They said yes and sent it the next morning."'>${esc2(it.observed || "")}</textarea><div class="hint">Only what you actually observed \u2014 no interpretation.</div></div>
@@ -13379,7 +13379,7 @@ self.onmessage = function (e) {
   ${confidenceField(it.interpretationConfidence || "Moderate")}
   <div class="form-grid">
     <div class="field"><label for="if_init">Who initiated?</label><select id="if_init" class="select">${["Me", "Them", "Mutual", "Unclear"].map((o) => `<option ${it.initiator === o ? "selected" : ""}>${esc2(o)}</option>`).join("")}</select></div>
-    <div class="field"><label for="if_dur">Duration (min)</label><input id="if_dur" class="input" type="number" min="0" value="${it.duration || ""}"></div>
+    <div class="field"><label for="if_dur">Duration (min)</label><input id="if_dur" class="input" type="number" min="0" value="${esc2(it.duration || "")}"></div>
   </div>
   ${tagInput("What did they do?", "if_tags", BEHAVIOR_TAGS, it.behaviorTags)}
   ${tagInput("Context", "if_ctx", CONTEXTS, it.context)}` : `<div class="empty"><p>Add a person first.</p><button class="btn btn-primary" data-action="addPerson">Add Person</button></div>`}`;
@@ -13438,8 +13438,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person</label><select id="of_person" class="select"><option value="">No specific person (general)</option>${people.map((p) => `<option value="${p.id}">${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="of_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person</label><select id="of_person" class="select"><option value="">No specific person (general)</option>${people.map((p) => `<option value="${esc2(p.id)}">${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="of_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="field"><label>Context</label><select id="of_ctx" class="select">${CONTEXTS.map((c) => `<option>${esc2(c)}</option>`).join("")}</select></div>
   <div class="field"><label>What I observed <span class="req">*</span></label><textarea id="of_content" class="textarea" required placeholder="Describe the observed behavior factually."></textarea><div class="hint">Encourage: What exactly happened? rather than What does this mean?</div></div>
@@ -13489,8 +13489,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="fv_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="fv_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="fv_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="fv_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="form-grid">
     <div class="field"><label>Who initiated?</label><select id="fv_init" class="select"><option>Me</option><option>Them</option></select></div>
@@ -13553,11 +13553,11 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="cm_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="cm_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Commitment <span class="req">*</span></label><input id="cm_text" class="input" required placeholder="e.g. Send the report"></div>
   </div>
   <div class="form-grid">
-    <div class="field"><label>Date promised</label><input id="cm_prom" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Date promised</label><input id="cm_prom" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
     <div class="field"><label>Expected completion</label><input id="cm_exp" class="input" type="date"></div>
   </div>
   <div class="form-grid">
@@ -13612,7 +13612,7 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="pd_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="pd_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Category</label><select id="pd_cat" class="select">${PREDICTION_TARGETS.map((t) => `<option>${esc2(t)}</option>`).join("")}</select></div>
   </div>
   <div class="field"><label>Prediction statement <span class="req">*</span></label><textarea id="pd_text" class="textarea" required placeholder="e.g. Will respond positively to a direct request for assistance."></textarea></div>
@@ -13693,7 +13693,7 @@ self.onmessage = function (e) {
     const cats = ["Likes", "Dislikes", "Topics", "Activities", "Food", "Communication", "Social settings", "Work preferences", "Interaction preferences"];
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="pr_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="pr_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
     <div class="field"><label>Category</label><select id="pr_cat" class="select">${cats.map((c) => `<option>${esc2(c)}</option>`).join("")}</select></div>
   </div>
   <div class="field"><label>Preference value <span class="req">*</span></label><input id="pr_val" class="input" required placeholder="e.g. Coffee"></div>
@@ -13702,7 +13702,7 @@ self.onmessage = function (e) {
     <div class="field"><label>Source type</label><select id="pr_src" class="select"><option>Direct statement</option><option>Observed</option><option>Inferred</option></select></div>
   </div>
   ${confidenceField("Moderate")}
-  <div class="field"><label>Date</label><input id="pr_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>` : `<div class="empty"><p>Add a person first.</p></div>`}`;
+  <div class="field"><label>Date</label><input id="pr_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>` : `<div class="empty"><p>Add a person first.</p></div>`}`;
     const foot = document.createElement("div");
     const cancel = document.createElement("button");
     cancel.className = "btn";
@@ -13742,8 +13742,8 @@ self.onmessage = function (e) {
     const responses = ["Accepted", "Asked once", "Negotiated", "Repeated request", "Became upset", "Respected decision later", "Other"];
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="bd_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="bd_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="bd_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="bd_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="field"><label>Situation / what I said <span class="req">*</span></label><textarea id="bd_sit" class="textarea" required placeholder='e.g. "I said I could not help tonight."'></textarea></div>
   <div class="field"><label>Response</label><select id="bd_resp" class="select">${responses.map((r) => `<option>${esc2(r)}</option>`).join("")}</select></div>
@@ -13784,8 +13784,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="cf_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="cf_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="cf_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="cf_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="form-grid">
     <div class="field"><label>Trigger</label><input id="cf_trig" class="input" placeholder="What triggered the conflict?"></div>
@@ -13852,8 +13852,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="sp_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="sp_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="sp_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="sp_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="form-grid">
     <div class="field"><label>Type</label><select id="sp_kind" class="select"><option value="practical">Practical</option><option value="emotional">Emotional</option></select></div>
@@ -13894,8 +13894,8 @@ self.onmessage = function (e) {
     const people = peopleList();
     const body = `
   ${people.length ? `<div class="form-grid">
-    <div class="field"><label>Person <span class="req">*</span></label><select id="st_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${p.id}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
-    <div class="field"><label>Date</label><input id="st_date" class="input" type="date" value="${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"></div>
+    <div class="field"><label>Person <span class="req">*</span></label><select id="st_person" class="select" required><option value="">Select\u2026</option>${people.map((p) => `<option value="${esc2(p.id)}" ${p.id === preselectId ? "selected" : ""}>${esc2(p.name)}</option>`).join("")}</select></div>
+    <div class="field"><label>Date</label><input id="st_date" class="input" type="date" value="${esc2((/* @__PURE__ */ new Date()).toISOString().slice(0, 10))}"></div>
   </div>
   <div class="field"><label>Statement <span class="req">*</span></label><input id="st_stmt" class="input" required placeholder='e.g. "I'll send the document tomorrow."'></div>
   <div class="field"><label>Expected behavior</label><input id="st_exp" class="input" placeholder="e.g. Send document tomorrow"></div>
@@ -13990,7 +13990,7 @@ self.onmessage = function (e) {
     const sel = $("#contextPersonSelect");
     if (!sel) return;
     const cur = getState().contextPersonId;
-    sel.innerHTML = `<option value="all">All people</option>` + peopleList().map((p) => `<option value="${p.id}" ${p.id === cur ? "selected" : ""}>${esc3(p.name)}</option>`).join("");
+    sel.innerHTML = `<option value="all">All people</option>` + peopleList().map((p) => `<option value="${esc2(p.id)}" ${p.id === cur ? "selected" : ""}>${esc3(p.name)}</option>`).join("");
     sel.value = cur;
   }
   function esc3(s) {
@@ -14024,7 +14024,7 @@ self.onmessage = function (e) {
     menu.className = "notif-panel";
     menu.style.right = "0";
     menu.style.left = "auto";
-    const item = (label, ico, view) => `<div class="notif-item" data-um="${view}"><span class="n-kind">${ico}</span><div>${label}</div></div>`;
+    const item = (label, ico, view) => `<div class="notif-item" data-um="${esc2(view)}"><span class="n-kind">${ico}</span><div>${label}</div></div>`;
     menu.innerHTML = item("Settings", "\u2699", "settings") + item("Privacy & Data", "\u{1F512}", "privacy") + item("Export my data", "\u2B07", "backup") + (locked ? item("Lock now", "\u{1F510}", "lock") : "");
     $("#topbar").appendChild(menu);
     menu.querySelectorAll("[data-um]").forEach((el) => el.addEventListener("click", () => {
@@ -14080,7 +14080,7 @@ self.onmessage = function (e) {
     });
     document.querySelectorAll(".nav-label[data-navgroup]").forEach((label) => {
       const group = label.getAttribute("data-navgroup");
-      const panel = document.querySelector(`.navgroup[data-group="${group}"]`);
+      const panel = document.querySelector(`.navgroup[data-group="${esc2(group)}"]`);
       const saved = localStorage.getItem("persona.nav." + group);
       const collapsed = saved === "1";
       if (collapsed && panel) {
@@ -14140,7 +14140,7 @@ self.onmessage = function (e) {
       if (!out.length) {
         results.innerHTML = `<div class="sr-empty">No matches for "${esc3(input.value)}"</div>`;
       } else {
-        results.innerHTML = out.map((r) => `<div class="search-result-item" data-sr="${r.store}" data-id="${r.id}">
+        results.innerHTML = out.map((r) => `<div class="search-result-item" data-sr="${esc2(r.store)}" data-id="${esc2(r.id)}">
         <span class="sr-kind">${esc3(r.kind)}</span>
         <div><div class="sr-title">${esc3(r.title)}</div><div class="sr-sub">${esc3(r.sub)}</div></div>
       </div>`).join("");
@@ -14390,7 +14390,7 @@ self.onmessage = function (e) {
       const render2 = (q) => {
         const ql = (q || "").toLowerCase();
         const cmds = PALETTE_COMMANDS.filter((c) => !ql || (c.label + " " + (c.desc || "")).toLowerCase().includes(ql));
-        list.innerHTML = cmds.map((c) => `<div class="list-item" data-cmd="${c.act || ""}" data-view="${c.view || ""}" style="cursor:pointer"><span class="tag tag-accent">${esc3(c.label)}</span><span class="muted">${esc3(c.desc || "")}</span></div>`).join("") || `<div class="muted" style="padding:10px">No matching command.</div>`;
+        list.innerHTML = cmds.map((c) => `<div class="list-item" data-cmd="${esc2(c.act || "")}" data-view="${esc2(c.view || "")}" style="cursor:pointer"><span class="tag tag-accent">${esc3(c.label)}</span><span class="muted">${esc3(c.desc || "")}</span></div>`).join("") || `<div class="muted" style="padding:10px">No matching command.</div>`;
         list.querySelectorAll("[data-cmd]").forEach((el) => el.addEventListener("click", () => {
           const act = el.getAttribute("data-cmd");
           const view = el.getAttribute("data-view");
