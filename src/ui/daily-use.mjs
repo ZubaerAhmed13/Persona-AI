@@ -61,11 +61,16 @@ export function personaV4uxEnhance(view) {
  if(view==="dashboard" && (getState().data.people||[]).length){
   const root=document.getElementById("view"),copilot=root?.querySelector("#copQuickInput")?.closest(".card");
   if(copilot&&copilot.parentElement===root&&copilot.nextElementSibling){
+   // Actionable due items must never be hidden by the insights disclosure.
+   const dueCard=[...root.children].find(el=>el.classList?.contains("card")&&
+     /^TODAY\b/.test(el.querySelector(".card-title")?.textContent.trim()||""));
+   if(dueCard)root.insertBefore(dueCard,copilot.nextSibling);
+   const anchor=dueCard||copilot;
    const details=document.createElement("details");details.className="v4ux-dashboard-extras";
    const title=document.createElement("summary");title.className="v4ux-extras-summary";
    title.innerHTML='<span><strong>More insights and tools</strong><small>Relationship briefing, decision support and detailed analysis</small></span><span aria-hidden="true" class="v4ux-extras-chevron">⌄</span>';
    details.appendChild(title);
-   while(copilot.nextSibling)details.appendChild(copilot.nextSibling);
+   while(anchor.nextSibling)details.appendChild(anchor.nextSibling);
    root.appendChild(details);
    details.open=Boolean(getState()._v4uxShowDashboardExtras);
    details.addEventListener("toggle",()=>getState()._v4uxShowDashboardExtras=details.open);
