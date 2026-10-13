@@ -447,6 +447,27 @@ async function testV4Workspace(cdp) {
   await openView(cdp, "people");
 }
 
+async function testLegacyMigrationRecovery(cdp) {
+  const seeded = await cdp.evaluate('(async () => { const db = await new Promise((resolve, reject) => { const r=indexedDB.open("persona-ai"); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); }); try { const due = new Date(Date.now() - 86400000).toISOString().slice(0,10); await new Promise((resolve,reject) => { const tx=db.transaction(["people","followUps"],"readwrite"); tx.oncomplete=resolve; tx.onabort=()=>reject(tx.error); tx.objectStore("people").put({ id:"v4-migrate-check", name:"Migration Test Person", createdAt:"2025-01-01T00:00:00.000Z" }); tx.objectStore("followUps").put({ id:"v4-expired-snooze", personId:"v4-migrate-check", text:"Expired snooze test reminder", dueDate:due, status:"snoozed", createdAt:"2025-01-01T00:00:00.000Z", schemaVersion:7 }); }); localStorage.removeItem("persona.v4.schemaRepair.v1"); return due; } finally { db.close(); } })()');
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(seeded), "Synthetic legacy migration fixture not inserted");
+  await reload(cdp);
+  await waitUntil(cdp, '(document.querySelector("#view")?.innerText || "").includes("Expired snooze test reminder")', "expired-snooze Today reminder");
+  const db = await snapshot(cdp);
+  assert.equal(db.people.find((p) => p.id === "v4-migrate-check")?.schemaVersion, 7,
+    "Retried schema repair did not persist for imported legacy record");
+  assert.equal(db.followUps.find((f) => f.id === "v4-expired-snooze")?.status, "snoozed",
+    "Schema repair modified the follow-up state");
+  assert.equal(await cdp.evaluate('localStorage.getItem("persona.v4.schemaRepair.v1")'), "done",
+    "Backfill progress marker not set after all 33 store transactions");
+  await openView(cdp, "openloops");
+  await waitUntil(cdp, '(document.querySelector("#view")?.innerText || "").includes("Expired snooze test reminder")',
+    "expired-snooze appears in historical Open Loops");
+  await cdp.evaluate('document.querySelector(\'#v4PrimaryNav [data-v4-view="followups"]\').click()');
+  await waitUntil(cdp, '(document.querySelector(".page-title")?.innerText || "") === "Follow-ups"', "post-migration Follow-ups view");
+  assert.equal(await cdp.evaluate('!!document.querySelector(\'[data-action="completeFollowUp"][data-arg="v4-expired-snooze"]\')'), true,
+    "Expired snooze missing from actionable Follow-ups");
+}
+
 async function testLocalAnalysis(cdp, apiRequests, requestUrls) {
   await openSettings(cdp);
   await cdp.evaluate(`(() => {
@@ -596,6 +617,7 @@ try {
 
   await testRejectCorruptBackup(cdp);
   await testAtomicPersonCascade(cdp);
+  await testLegacyMigrationRecovery(cdp);
 
   assert.deepEqual(runtimeErrors, [], `Runtime errors: ${runtimeErrors.join(" | ")}`);
   assert.equal(consoleMessages.some((x) => x.includes(MOCK_KEY)), false, "API key leaked to console");

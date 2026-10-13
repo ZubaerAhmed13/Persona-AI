@@ -1,3 +1,22 @@
+// Open follow-ups include future scheduled work, but postpone snoozed ones
+// only until the new due date; completing/cancelling closes them permanently.
+export function personaV4IsFollowUpOpen(item, today) {
+  if (!item || item.completed === true || item.cancelled === true) return false;
+  const status = String(item.status || "").toLowerCase();
+  if (["done", "completed", "cancelled"].includes(status)) return false;
+  return status !== "snoozed" || personaV4IsFollowUpDue(item, today);
+}
+
+// One due-state rule shared by Today, Follow-ups, and the navigation counter.
+// Snoozing postpones the due date; it must not hide a reminder forever.
+export function personaV4IsFollowUpDue(item, today) {
+  if (!item || item.completed === true || item.cancelled === true) return false;
+  const status = String(item.status || "").toLowerCase();
+  if (["done", "completed", "cancelled"].includes(status)) return false;
+  const due = item.dueDate ? String(item.dueDate).slice(0, 10) : "";
+  return !due || due <= today;
+}
+
 // Persona AI 4.0: progressive enhancement of the original one-file app.
 // No cloud resources, dependency, schema change, or write to user data.
 export function personaV4InitWorkspace() {
@@ -124,14 +143,9 @@ export function personaV4SyncWorkspace(view) {
   });
   const count = document.getElementById("v4DueCount");
   if (count) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const due = (getState().data.followUps || []).filter((item) => {
-      if (item.completed || ["done", "completed", "cancelled"].includes(String(item.status || "").toLowerCase())) return false;
-      if (!item.dueDate) return false;
-      const date = new Date(item.dueDate);
-      return !isNaN(date) && date < new Date(today.getTime() + 864e5);
-    }).length;
+    const today = todayLocal();
+    const due = (getState().data.followUps || [])
+      .filter((item) => Boolean(item.dueDate) && personaV4IsFollowUpDue(item, today)).length;
     count.textContent = String(due);
     count.hidden = due === 0;
     count.setAttribute("aria-label", due + " follow-ups due");
