@@ -39,3 +39,7 @@ Run `npm run check`, including the reproducible bundle gate and Chromium smoke/a
 ## Remaining quality questions
 
 This makes a useful improvement to everyday workflows, but it is **not** proof of world-class usability. Real longitudinal use, actual phone/tablet hardware tests, assistive-technology sessions, and quantitative task-success/user-satisfaction measurement remain unverified.
+
+## Verified automated acceptance
+
+The [development branch's complete GitHub Actions run #38460052706](https://github.com/ZubaerAhmed13/Persona-AI/actions/runs/38460052706) passed the reproducible build gate, security and unit tests, offline and HTTP-hosted Chrome smoke tests, full backup and AI acceptance, and extended feature-workflow acceptance. Its CI-generated `index.html` was committed before PR review. The regression suite also verified that older imported-record IDs remain safe in the updated directory, and that existing users' due reminders remain immediately visible on Today. Physical phone testing and user interviews have not been conducted.
