@@ -1482,6 +1482,13 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   /* PERSONA_V4_SAFETY_RUNTIME_END */
 
   /* PERSONA_V4_WORKSPACE_RUNTIME_START */
+  function personaV4IsFollowUpOpen(item, today) {
+    if (!item || item.completed === true || item.cancelled === true) return false;
+    const status = String(item.status || "").toLowerCase();
+    if (["done", "completed", "cancelled"].includes(status)) return false;
+    return status !== "snoozed" || personaV4IsFollowUpDue(item, today);
+  }
+  
   function personaV4IsFollowUpDue(item, today) {
     if (!item || item.completed === true || item.cancelled === true) return false;
     const status = String(item.status || "").toLowerCase();
@@ -3819,7 +3826,7 @@ Evidence packet: ${JSON.stringify(packet.packet)}`
             };
           }
           if (/(need follow.?up|which people|follow.?up\b)/.test(q)) {
-            const fu = getState().data.followUps.filter((f) => f.status !== "done" && f.status !== "snoozed");
+            const fu = getState().data.followUps.filter((f) => personaV4IsFollowUpOpen(f, todayLocal()));
             return {
               answer: fu.length ? `${fu.length} open follow-up(s): ${fu.map((f) => `${personName(f.personId)} \u2014 ${f.text}`).join("; ")}.` : "No open follow-ups recorded.",
               notes: ["Follow-ups are gentle reminders, not surveillance."],
@@ -4017,7 +4024,7 @@ Evidence: ${JSON.stringify(ctx)}`);
       loops.push({ id: "c_" + c.id, store: "commitment", sourceId: c.id, personId: c.personId, owner: "them", type: "Commitment", text: c.commitment, createdAt: c.date, dueAt: c.expectedCompletion, status: "Open", importance: c.importance || "Medium", overdue: !!due && due < today });
     });
     s.data.followUps.forEach((f) => {
-      if (f.status === "done" || f.status === "snoozed") return;
+      if (!personaV4IsFollowUpOpen(f, todayLocal())) return;
       const due = (f.dueDate || "").slice(0, 10);
       loops.push({ id: "f_" + f.id, store: "followUp", sourceId: f.id, personId: f.personId, owner: "me", type: "Follow-up", text: f.text, createdAt: f.createdAt || f.dueDate, dueAt: f.dueDate, status: "Open", importance: "Medium", overdue: !!due && due < today });
     });
@@ -4204,7 +4211,7 @@ Evidence: ${JSON.stringify(ctx)}`);
     const people = s.data.people;
     const pid = smartResolvePerson(q, personId);
     if (/(what did i promise|what have i promised|my promises|did i promise|what did you promise|promises|what do i owe)/.test(q)) {
-      const myFollowUps = s.data.followUps.filter((f) => (!pid || f.personId === pid) && f.status !== "done" && f.status !== "snoozed");
+      const myFollowUps = s.data.followUps.filter((f) => (!pid || f.personId === pid) && personaV4IsFollowUpOpen(f, todayLocal()));
       const myCommits = s.data.commitments.filter((c) => (!pid || c.personId === pid) && !c.completed && !c.cancelled);
       const items = [
         ...myFollowUps.map((f) => ({ person: personName(f.personId), text: f.text, due: f.dueDate, status: "Follow-up (you owe)" })),
@@ -7176,7 +7183,7 @@ Evidence: ${JSON.stringify(ctx)}`);
     }
     if (rules.overdueFollowUp) {
       const now = /* @__PURE__ */ new Date();
-      const due = s.data.followUps.filter((f) => f.status !== "done" && f.status !== "snoozed" && f.dueDate && new Date(f.dueDate) <= now);
+      const due = s.data.followUps.filter((f) => f.dueDate && personaV4IsFollowUpDue(f, todayLocal()));
       if (due.length) fired.push({ kind: "Action", message: `${due.length} follow-up(s) are due.` });
     }
     if (rules.metricChange) {
@@ -7778,7 +7785,7 @@ self.onmessage = function (e) {
         peopleCount: new Set(interactions.map(i => i.personId)).size,
         commitments: commitments.length,
         pendingPredictions: predictions.filter(p => !p.outcome || p.outcome === "pending").length,
-        overdueFollowUps: followUps.filter(f => f.status !== "done" && f.status !== "snoozed" && f.dueDate && new Date(f.dueDate) <= new Date()).length,
+        overdueFollowUps: followUps.filter(f => f.dueDate && !f.completed && !f.cancelled && !["done", "completed", "cancelled"].includes(String(f.status || "").toLowerCase()) && new Date(f.dueDate) <= new Date()).length,
         people: people.length,
       };
     } else if (type === "evidenceCount") {
@@ -8802,7 +8809,7 @@ self.onmessage = function (e) {
     const s = getState();
     const now = /* @__PURE__ */ new Date();
     const items = [];
-    const fuDue = s.data.followUps.filter((f) => f.status !== "done" && f.status !== "snoozed" && f.dueDate && new Date(f.dueDate) <= now).length;
+    const fuDue = s.data.followUps.filter((f) => f.dueDate && personaV4IsFollowUpDue(f, todayLocal())).length;
     if (fuDue) items.push({ n: fuDue, label: "follow-up(s) due", act: "addFollowUp", icon: "bell" });
     const predDue = s.data.predictions.filter((p) => !p.outcome || p.outcome === "pending").length;
     if (predDue) items.push({ n: predDue, label: "prediction(s) need outcomes", act: "outcomePrediction", icon: "predictions" });
@@ -10985,7 +10992,7 @@ self.onmessage = function (e) {
   }
   function nextWeekRecommendations() {
     const out = [];
-    const fu = getState().data.followUps.filter((f) => f.status !== "done" && f.status !== "snoozed");
+    const fu = getState().data.followUps.filter((f) => personaV4IsFollowUpOpen(f, todayLocal()));
     if (fu.length) out.push({ kind: "Follow-up", text: `${fu.length} open follow-up(s) to complete.` });
     const overdue = getState().data.commitments.filter((c) => !c.completed && !c.cancelled && c.expectedCompletion && new Date(c.expectedCompletion) < /* @__PURE__ */ new Date());
     if (overdue.length) out.push({ kind: "Commitment", text: `${overdue.length} overdue commitment(s) to resolve.` });
