@@ -16,7 +16,7 @@ import {
   openAICompatibleChat
 } from "../src/hardening/runtime.mjs";
 import { validatePersonaBackup, personaAtomicRestore, personaAtomicDeletePerson } from "../src/safety/data-safety.mjs";
-import { personaV4IsFollowUpDue, personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps } from "../src/ui/workspace.mjs";
+import { personaV4IsFollowUpOpen, personaV4IsFollowUpDue, personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps } from "../src/ui/workspace.mjs";
 import { repairPersonaLegacySchemas } from "../src/safety/migration.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -82,7 +82,7 @@ else {
   if (close < 0) throw new Error("Persona v4 workspace head style block missing");
   html = html.slice(0, close) + workspaceCssBlock + html.slice(close);
 }
-const workspaceFns = [personaV4IsFollowUpDue, personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps]
+const workspaceFns = [personaV4IsFollowUpOpen, personaV4IsFollowUpDue, personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps]
   .map((fn) => fn.toString()).join("\n\n");
 const workspaceBlock = "  /* PERSONA_V4_WORKSPACE_RUNTIME_START */\n" +
   workspaceFns.split("\n").map((line) => "  " + line).join("\n") +
@@ -214,6 +214,16 @@ for (const p of v4PostmergePatches) {
   if (existing === p.after) continue;
   if (existing !== p.before) throw new Error("v4 integrity source drift: " + p.id);
   html = html.slice(0, start) + p.after + html.slice(end);
+}
+
+
+// Shared overdue/open-follow-up state across historical modules and Worker.
+const v4FollowupPatches = [{"id":"local-analyst-and-weekly-open","oldText":"const fu = getState().data.followUps.filter((f) => f.status !== \"done\" && f.status !== \"snoozed\");","newText":"const fu = getState().data.followUps.filter((f) => personaV4IsFollowUpOpen(f, todayLocal()));","count":2},{"id":"open-loops-snooze","oldText":"if (f.status === \"done\" || f.status === \"snoozed\") return;","newText":"if (!personaV4IsFollowUpOpen(f, todayLocal())) return;","count":1},{"id":"copilot-promises","oldText":"const myFollowUps = s.data.followUps.filter((f) => (!pid || f.personId === pid) && f.status !== \"done\" && f.status !== \"snoozed\");","newText":"const myFollowUps = s.data.followUps.filter((f) => (!pid || f.personId === pid) && personaV4IsFollowUpOpen(f, todayLocal()));","count":1},{"id":"automation-due","oldText":"const due = s.data.followUps.filter((f) => f.status !== \"done\" && f.status !== \"snoozed\" && f.dueDate && new Date(f.dueDate) <= now);","newText":"const due = s.data.followUps.filter((f) => f.dueDate && personaV4IsFollowUpDue(f, todayLocal()));","count":1},{"id":"worker-due","oldText":"overdueFollowUps: followUps.filter(f => f.status !== \"done\" && f.status !== \"snoozed\" && f.dueDate && new Date(f.dueDate) <= new Date()).length,","newText":"overdueFollowUps: followUps.filter(f => f.dueDate && !f.completed && !f.cancelled && ![\"done\", \"completed\", \"cancelled\"].includes(String(f.status || \"\").toLowerCase()) && new Date(f.dueDate) <= new Date()).length,","count":1},{"id":"action-center","oldText":"const fuDue = s.data.followUps.filter((f) => f.status !== \"done\" && f.status !== \"snoozed\" && f.dueDate && new Date(f.dueDate) <= now).length;","newText":"const fuDue = s.data.followUps.filter((f) => f.dueDate && personaV4IsFollowUpDue(f, todayLocal())).length;","count":1}];
+for (const patch of v4FollowupPatches) {
+  const occurrences = html.split(patch.oldText).length - 1;
+  if (occurrences === 0 && html.includes(patch.newText)) continue;
+  if (occurrences !== patch.count) throw new Error("v4 reminder integration drift: " + patch.id + " (" + occurrences + ")");
+  html = html.split(patch.oldText).join(patch.newText);
 }
 
 await writeFile(indexPath, html, "utf8");
