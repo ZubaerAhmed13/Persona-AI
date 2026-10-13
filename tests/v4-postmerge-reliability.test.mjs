@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { repairPersonaLegacySchemas } from "../src/safety/migration.mjs";
-import { personaV4IsFollowUpDue } from "../src/ui/workspace.mjs";
+import { personaV4IsFollowUpDue, personaV4IsFollowUpOpen } from "../src/ui/workspace.mjs";
 
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
@@ -102,6 +102,10 @@ test("Today, navigation badges and follow-up report agree after snooze expiry", 
   assert.equal(personaV4IsFollowUpDue({ completed: true, dueDate: "2026-10-12" }, today), false);
   assert.equal(personaV4IsFollowUpDue({ cancelled: true, dueDate: "2026-10-12" }, today), false);
   assert.equal(personaV4IsFollowUpDue({ dueDate: null }, today), true);
+  assert.equal(personaV4IsFollowUpOpen({ status: "snoozed", dueDate: "2026-10-16" }, today), false);
+  assert.equal(personaV4IsFollowUpOpen({ status: "snoozed", dueDate: "2026-10-12" }, today), true);
+  assert.equal(personaV4IsFollowUpOpen({ status: "active", dueDate: "2026-10-16" }, today), true);
+  assert.equal(personaV4IsFollowUpOpen({ status: "done", dueDate: "2026-10-12" }, today), false);
   for (const marker of [
     'async function ensurePersonaV4SchemaRepair()',
     'await repairPersonaLegacySchemas(await openDb(), STORES, SCHEMA_VERSION, report);',
