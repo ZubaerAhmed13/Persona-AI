@@ -269,3 +269,21 @@ test("production bundle contains hardening integration and preserves single-file
   assert.equal(/<script[^>]+src=/i.test(html), false);
   assert.equal(html.includes(TEST_SECRET), false);
 });
+
+
+test("Stage 10 — incoming object metadata cannot mutate sanitizer output prototypes", () => {
+  const hostileSettings = JSON.parse('{"theme":"dark","__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"aiApiKey":"secret-sentinel"}');
+  const hostileRecord = JSON.parse('{"id":"p1","name":"Alex","__proto__":{"isAdmin":true},"constructor":{"prototype":{"isAdmin":true}},"nested":{"prototype":{"unsafe":true},"authorization":"secret-sentinel","safe":"keep"}}');
+  const cleanSettings = sanitizePersistentSettings(hostileSettings);
+  const cleanData = sanitizeSecretsDeep({people:[hostileRecord]});
+  assert.deepEqual(cleanSettings, {theme:"dark"});
+  assert.equal(Object.getPrototypeOf(cleanSettings),Object.prototype);
+  assert.equal(Object.getPrototypeOf(cleanData.people[0]),Object.prototype);
+  assert.equal(cleanData.people[0].nested.safe,"keep");
+  assert.equal(Object.hasOwn(cleanData.people[0],"__proto__"),false);
+  assert.equal(Object.hasOwn(cleanData.people[0],"constructor"),false);
+  assert.equal(Object.hasOwn(cleanData.people[0].nested,"prototype"),false);
+  assert.equal(JSON.stringify(cleanData).includes("secret-sentinel"),false);
+  assert.equal({}.polluted,undefined);
+  assert.equal({}.isAdmin,undefined);
+});
