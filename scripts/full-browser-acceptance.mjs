@@ -490,6 +490,41 @@ async function testV4Stage7GroundedCopilot(cdp) {
   assert.ok(await cdp.evaluate('document.querySelectorAll("#copOut [data-action=\\"v4EvidenceSource\\"]").length>0'));
 }
 
+async function testV4Stage8EvidenceNetwork(cdp) {
+  const before=canonical(await snapshot(cdp));
+  await openView(cdp,"relationships");
+  await waitUntil(cdp,'!!document.querySelector("#v4s8Panel .v4s8-map")',"Stage 8 evidence network");
+  const initial=await cdp.evaluate('(() => ({nodes:document.querySelectorAll("#v4s8Panel .v4s8-map-node").length,lines:document.querySelectorAll("#v4s8Panel svg line").length,classic:!!document.querySelector(".v4s8-classic summary")}))()');
+  assert.equal(initial.nodes,1,"Single existing fixture contact should have a diagram node");
+  assert.equal(initial.lines,1,"One line from the user per contact, with no invented cross-person edges");
+  await cdp.evaluate('document.querySelector(\'#v4s8Panel .v4s8-person-row[data-arg="v31-person"]\').click()');
+  await waitUntil(cdp,'!!document.querySelector("#v4s8Selection .v4s8-source")',"contact evidence list");
+  const details=await cdp.evaluate('document.querySelector("#v4s8Selection")?.innerText || ""');
+  assert.match(details,/V3.1 Compatibility Person/);
+  await cdp.evaluate('document.querySelector("#v4s8Selection .v4s8-source").click()');
+  await waitUntil(cdp,'(document.querySelector("#modalRoot")?.innerText||"").includes("Source record")',"source evidence inspection");
+  await cdp.evaluate('(() => { const close=[...document.querySelectorAll("#modalRoot button")].find(x=>x.textContent.trim()==="Close");close?.click();})()');
+  await cdp.evaluate('(() => {const input=document.querySelector("#v4s8Search");input.value="no existing contact matches this";input.dispatchEvent(new Event("input",{bubbles:true}));})()');
+  await waitUntil(cdp,'document.querySelectorAll("#v4s8Panel .v4s8-map-node").length===0',"network contact search");
+  const empty=await cdp.evaluate('document.querySelector("#v4s8NetworkRoot")?.innerText||""');
+  assert.match(empty,/No contacts match/);
+  await cdp.evaluate('(() => {const input=document.querySelector("#v4s8Search");input.value="";input.dispatchEvent(new Event("input",{bubbles:true}));})()');
+  await waitUntil(cdp,'document.querySelectorAll("#v4s8Panel .v4s8-map-node").length===1',"network filter reset");
+
+  await openView(cdp,"decisionlab");
+  await waitUntil(cdp,'!!document.querySelector(\'[data-action="v4DecisionEvidence"]\')',"Decision Lab evidence preview");
+  await cdp.evaluate('(() => {document.querySelector("#dl_person").value="v31-person";document.querySelector("#dl_decision").value="Should I ask about the project update?";document.querySelector("#dl_impact").value="High";document.querySelector("#dl_rev").value="Irreversible";document.querySelector(\'[data-action="v4DecisionEvidence"]\').click();})()');
+  await waitUntil(cdp,'!!document.querySelector("#v4s8DecisionOutput .v4s8-review")',"Decision Lab read-only context");
+  const review=await cdp.evaluate('document.querySelector("#v4s8DecisionOutput")?.innerText||""');
+  assert.match(review,/hard-to-reverse/);
+  assert.match(review,/Relevant recorded context/);
+  assert.ok(await cdp.evaluate('document.querySelectorAll("#v4s8DecisionOutput .v4s8-source").length>0'));
+
+  await openView(cdp,"patterns");
+  assert.ok(await cdp.evaluate('!!document.querySelector("#v4s8Panel")'),"Pattern evidence coverage section missing");
+  assert.deepEqual(canonical(await snapshot(cdp)),before,"Exploring Stage 8 network or decision context changed records");
+}
+
 async function runCoreCrudWorkflow(cdp) {
   await openView(cdp, "people");
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
@@ -839,6 +874,7 @@ try {
   await testV4Workspace(cdp);
   await testV4Stage6Planning(cdp);
   await testV4Stage7GroundedCopilot(cdp);
+  await testV4Stage8EvidenceNetwork(cdp);
   await testV4PeopleActivity(cdp);
   await runCoreCrudWorkflow(cdp);
   await testV4SmartCaptureAndContacts(cdp);

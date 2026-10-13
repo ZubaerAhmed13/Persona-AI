@@ -1,0 +1,37 @@
+/* Persona AI 4.0 Stage 8 — evidence-based relationship explorer */
+.v4s8-panel{margin:0 0 16px}
+.v4s8-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.v4s8-header h2{font-size:1.1rem;font-weight:700;color:var(--text-strong);margin:0}
+.v4s8-header>span,.v4s8-muted{font-size:.79rem;line-height:1.5;color:var(--text-soft)}
+.v4s8-toolbar{display:flex;gap:16px;align-items:end;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+.v4s8-search-label{display:flex;flex:1;min-width:230px;max-width:425px;flex-direction:column;gap:6px;font-size:.78rem;color:var(--text-soft)}
+.v4s8-network-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(190px,1fr);gap:12px}
+.v4s8-figure{border:1px solid var(--border);border-radius:10px;min-width:0;background:var(--bg);padding:8px}
+.v4s8-map{width:100%;height:auto;max-height:420px;display:block}
+.v4s8-map-node{cursor:pointer}
+.v4s8-map-node:focus-visible{outline:none}
+.v4s8-map-node:focus-visible circle{stroke-width:4;stroke:var(--ok)}
+.v4s8-map-selected text{font-weight:700}
+.v4s8-explainer{font-size:.72rem;color:var(--text-soft);padding:0 8px 8px;margin:0;line-height:1.6}
+.v4s8-directory{max-height:420px;overflow:auto;display:grid;gap:6px;align-content:start}
+.v4s8-person-row,.v4s8-source{width:100%;text-align:left;display:flex;flex-direction:column;align-items:start;gap:4px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text-strong);font:inherit;cursor:pointer;min-width:0}
+.v4s8-person-row.active{border-color:var(--accent);background:var(--accent-soft)}
+.v4s8-person-row:hover,.v4s8-source:hover{border-color:var(--accent)}
+.v4s8-name{font-size:.83rem;font-weight:700;overflow-wrap:anywhere}
+.v4s8-detail{border-top:1px solid var(--border);margin-top:14px;padding-top:12px}
+.v4s8-detail-head{display:flex;gap:10px;justify-content:space-between;align-items:start;flex-wrap:wrap}
+.v4s8-detail-head h3,.v4s8-review h3{margin:0 0 4px;font-size:.9rem}
+.v4s8-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.v4s8-source{font-size:.82rem;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap}
+.v4s8-source-meta{font-size:.7rem;color:var(--accent);font-weight:700;text-transform:capitalize}
+.v4s8-source-record{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+.v4s8-inference{border:1px solid var(--border);padding:12px;border-radius:10px;margin-top:10px}
+.v4s8-inference p{margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.v4s8-review{margin-top:12px;line-height:1.55}
+.v4s8-review .v4s8-source{margin-top:7px}
+.v4s8-classic{margin:12px 0 16px}
+.v4s8-classic summary{cursor:pointer;font-size:.82rem;color:var(--text-soft);padding:8px 0}
+.v4s8-panel :focus-visible,.v4s8-classic :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:820px){.v4s8-network-grid{grid-template-columns:1fr}.v4s8-directory{max-height:160px;grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.v4s8-sources{grid-template-columns:1fr}.v4s8-directory{grid-template-columns:1fr}.v4s8-header{flex-direction:column;align-items:start}}
+@media(prefers-reduced-motion:reduce){.v4s8-source,.v4s8-person-row{transition:none}}
