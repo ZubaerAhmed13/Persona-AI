@@ -737,6 +737,30 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 @media (prefers-reduced-motion: reduce) {
   .person-card, .insight-card, .v4-core-link, .v4-chevron { transition: none !important; }
 }
+
+/* Six predictable destinations on mobile; the quick-capture FAB is retained. */
+.v4-mobile-nav { display: none; }
+@media (max-width: 720px) {
+  #mobileNav { display: none !important; }
+  .v4-mobile-nav {
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+    padding: 7px 3px calc(8px + env(safe-area-inset-bottom));
+    background: var(--bg-raise); border-top: 1px solid var(--border);
+    box-shadow: 0 -6px 18px rgba(0,0,0,.035);
+  }
+  .v4-mobile-link {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; min-width: 0; min-height: 48px; padding: 5px 2px;
+    border-radius: 10px; border: 0; background: transparent; color: var(--text-soft);
+    font-size: clamp(.55rem, 1.8vw, .69rem); font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .v4-mobile-link.active { color: var(--accent); background: var(--accent-soft); }
+  .v4-mobile-link:hover { background: var(--hover); }
+  .v4-mobile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .v4-mobile-icon { display: grid; place-items: center; }
+}
 /* PERSONA_V4_WORKSPACE_CSS_END */
 </style>
 </head>
@@ -1449,6 +1473,36 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
       coreNav.appendChild(button);
     }
     nav.before(coreNav);
+    // On small screens the same six destinations replace the legacy mobile
+    // shortcut strip. The floating capture button remains available.
+    const legacyMobile = document.getElementById("mobileNav");
+    if (legacyMobile && !document.getElementById("v4MobileNav")) {
+      const mobile = document.createElement("nav");
+      mobile.id = "v4MobileNav";
+      mobile.className = "v4-mobile-nav";
+      mobile.setAttribute("aria-label", "Mobile workspace");
+      for (const [view, label, ico] of core) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "v4-mobile-link";
+        button.dataset.v4Mobile = view;
+        button.setAttribute("aria-label", label);
+        const graphic = document.createElement("span");
+        graphic.className = "v4-mobile-icon";
+        graphic.setAttribute("aria-hidden", "true");
+        graphic.innerHTML = icon(ico, 19);
+        const word = document.createElement("span");
+        word.textContent = label;
+        button.append(graphic, word);
+        button.addEventListener("click", () => {
+          getState().focusPersonId = null;
+          navigate2(view);
+          document.getElementById("sidebar")?.classList.remove("open");
+        });
+        mobile.appendChild(button);
+      }
+      legacyMobile.after(mobile);
+    }
     const tools = document.createElement("div");
     tools.className = "v4-sidebar-tools";
     const advanced = document.createElement("button");
@@ -1484,6 +1538,12 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     const active = labels[view] || null;
     document.querySelectorAll("#v4PrimaryNav [data-v4-view]").forEach((button) => {
       const selected = button.dataset.v4View === view;
+      button.classList.toggle("active", selected);
+      if (selected) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
+    document.querySelectorAll("#v4MobileNav [data-v4-mobile]").forEach((button) => {
+      const selected = button.dataset.v4Mobile === view;
       button.classList.toggle("active", selected);
       if (selected) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
