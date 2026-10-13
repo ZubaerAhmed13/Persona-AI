@@ -159,6 +159,66 @@ test("person deletion deletes primary key and every linked record, preserving un
     auditLog: [{ id: "a3", store: "people", recordId: "p2" }]
   });
 });
+test("deleting a person removes provably owned indirect links and audit traces without touching another person", async () => {
+  const initial = {
+    people: [{ id: "p1", name: "One" }, { id: "p2", name: "Two" }],
+    playbooks: [{ id: "pb1", personId: "p1" }, { id: "pb2", personId: "p2" }],
+    signals: [{ id: "sg1", personId: "p1" }, { id: "sg2", personId: "p2" }],
+    decisions: [{ id: "d1", personId: "p1" }, { id: "d2", personId: "p2" }],
+    playbookHistory: [
+      { id: "h1", playbookId: "pb1" },
+      { id: "h2", playbookId: "pb2" },
+      { id: "h_other", personId: "p2", playbookId: "pb1" }
+    ],
+    signalHistory: [
+      { id: "sh1", signalId: "sg1" },
+      { id: "sh2", signalId: "sg2" }
+    ],
+    decisionOptions: [
+      { id: "do1", decisionId: "d1" },
+      { id: "do2", decisionId: "d2" }
+    ],
+    auditLog: [
+      { id: "a1", store: "playbooks", recordId: "pb1" },
+      { id: "a2", store: "playbookHistory", recordId: "h1" },
+      { id: "a3", store: "decisionOptions", recordId: "do1" },
+      { id: "a4", store: "signals", recordId: "sg2" },
+      { id: "a5", store: "people", recordId: "p2" },
+      { id: "a6", store: "people", recordId: "p1", personId: "p2" }
+    ]
+  };
+  const db = fakeDb(initial);
+  await personaAtomicDeletePerson(db, Object.keys(initial), "p1", keyRange);
+  assert.deepEqual(db.present(), {
+    people: [{ id: "p2", name: "Two" }],
+    playbooks: [{ id: "pb2", personId: "p2" }],
+    signals: [{ id: "sg2", personId: "p2" }],
+    decisions: [{ id: "d2", personId: "p2" }],
+    playbookHistory: [
+      { id: "h2", playbookId: "pb2" },
+      { id: "h_other", personId: "p2", playbookId: "pb1" }
+    ],
+    signalHistory: [{ id: "sh2", signalId: "sg2" }],
+    decisionOptions: [{ id: "do2", decisionId: "d2" }],
+    auditLog: [
+      { id: "a4", store: "signals", recordId: "sg2" },
+      { id: "a5", store: "people", recordId: "p2" },
+      { id: "a6", store: "people", recordId: "p1", personId: "p2" }
+    ]
+  });
+});
+
+test("an indirect-record deletion failure rolls back the full multi-store transaction", async () => {
+  const initial = {
+    people: [{ id: "p1", name: "One" }],
+    playbooks: [{ id: "pb1", personId: "p1" }],
+    playbookHistory: [{ id: "h1", playbookId: "pb1" }]
+  };
+  const db = fakeDb(initial, { failDelete: true });
+  await assert.rejects(personaAtomicDeletePerson(db, Object.keys(initial), "p1", keyRange), /Simulated/);
+  assert.deepEqual(db.present(), initial);
+});
+
 test("failed person deletion aborts and keeps primary person + relationships intact", async () => {
   const seed = { people: [{ id: "p1", name: "One" }], interactions: [{ id: "i1", personId: "p1" }] };
   const db = fakeDb(seed, { failDelete: true });
