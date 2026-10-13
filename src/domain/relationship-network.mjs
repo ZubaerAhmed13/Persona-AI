@@ -25,9 +25,10 @@ export function personaV4Stage8Network(data,filter="") {
   const term=String(filter||"").trim().toLocaleLowerCase();
   const people=(Array.isArray(data?.people)?data.people:[]).filter(p=>p&&typeof p.id==="string");
   const interactions=Array.isArray(data?.interactions)?data.interactions:[];
+  const ids=new Set(people.map(p=>p.id));
   const count=new Map(),recent=new Map();
   for(const i of interactions){
-    if(!i||typeof i.personId!=="string"||!people.some(p=>p.id===i.personId))continue;
+    if(!i||typeof i.personId!=="string"||!ids.has(i.personId))continue;
     count.set(i.personId,(count.get(i.personId)||0)+1);
     const day=String(i.date||i.createdAt||"").slice(0,10);
     if(/^\d{4}-\d{2}-\d{2}$/.test(day)&&day>(recent.get(i.personId)||""))recent.set(i.personId,day);
