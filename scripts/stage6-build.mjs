@@ -41,7 +41,7 @@ inject(runtimeStart,runtimeEnd,runtime,"  // js/storage.js");
 
 const cssStart="/* PERSONA_V4_STAGE6_CSS_START */";
 const cssEnd="/* PERSONA_V4_STAGE6_CSS_END */";
-const css=cssStart+"\n"+(await readFile(resolve(root,"src/ui/followup-planner.css"),"utf8")).trimEnd()+"\n"+cssEnd+"\n";
+const css=cssStart+"\n"+(await readFile(resolve(root,"src/ui/followup-planner.css"),"utf8")).trimEnd()+"\n"+cssEnd;
 const firstStyleClose=html.indexOf("</style>");
 if(firstStyleClose<0)throw new Error("Missing CSS end tag");
 const existingStyle=html.indexOf(cssStart);
@@ -49,7 +49,7 @@ if(existingStyle>=0) {
   const last=html.indexOf(cssEnd,existingStyle);
   if(last<0)throw new Error("Missing Stage6 CSS end marker");
   html=html.slice(0,existingStyle)+css+html.slice(last+cssEnd.length);
-} else html=html.slice(0,firstStyleClose)+css+html.slice(firstStyleClose);
+} else html=html.slice(0,firstStyleClose)+css+"\n"+html.slice(firstStyleClose);
 
 // Preserve Stage 2's historical followups route name and its source module.
 // The bundled implementation forwards to the new read-only stage6 selector.
