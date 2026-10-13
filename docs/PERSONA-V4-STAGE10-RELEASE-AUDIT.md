@@ -58,3 +58,7 @@ The deployment workflow publishes a single verified-file tree on `gh-pages` only
 This release does not build a novel trained LLM, global cloud sync, background push, calendar integration, or an account/login backend. Optional external AI actions outside the new Copilot evidence desk keep their separately activated existing provider behavior; Stage 7's *per-request context preview* does not universally wrap every legacy AI control. No user data should ever be committed into this public repository.
 
 **Stage 10 completion rule:** passing branch tests alone is insufficient. Require independent PR green, merge, post-merge main certification, and a successful live Pages exact-artifact plus Chrome smoke. Only then call the automated release deployed. Keep outstanding manual-device testing clearly marked.
+
+## Measured release candidate, October 13, 2026
+
+Development-branch [certification #38455073980](https://github.com/ZubaerAhmed13/Persona-AI/actions/runs/38455073980) completed successfully: **1,002,047 raw bytes; 226,289 gzip bytes (22.6% of raw); 33 stores; 34 legacy view handlers; byte-for-byte repeat-build verified**. These are *packaging measurements*, not network Core Web Vitals or a physical-device benchmark. The generated artifact SHA-256 was `1cb8da61d057e5adf5a9f2f6fd6c2feef34d256956eb12962e9cba6767ca59bf`. Independent PR and main/deployment gates remain mandatory.
