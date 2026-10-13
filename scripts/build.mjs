@@ -15,6 +15,7 @@ import {
   shouldUseExternalAI,
   openAICompatibleChat
 } from "../src/hardening/runtime.mjs";
+import { validatePersonaBackup, personaAtomicRestore, personaAtomicDeletePerson } from "../src/safety/data-safety.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -55,6 +56,18 @@ const injectedFunctions = [
 ].map((fn) => fn.toString()).join("\n\n");
 
 const runtimeBlock = `  /* PERSONA_HARDENING_RUNTIME_START */\n  var SECRET_SETTING_KEYS = Object.freeze(${JSON.stringify(SECRET_SETTING_KEYS)});\n  var SESSION_API_KEY = ${JSON.stringify(SESSION_API_KEY)};\n${injectedFunctions.split("\n").map((line) => "  " + line).join("\n")}\n  var SecretStore = createSecretStore();\n  function buildBackupPayload(settings, data) {\n    return makeBackupPayload(settings, data, {\n      app: "PERSONA AI",\n      version: APP_VERSION,\n      schemaVersion: SCHEMA_VERSION,\n      exportFormatVersion: EXPORT_FORMAT_VERSION,\n      exportedAt: (/* @__PURE__ */ new Date()).toISOString()\n    });\n  }\n  /* PERSONA_HARDENING_RUNTIME_END */`;
+
+const safetyFunctions = [validatePersonaBackup, personaAtomicRestore, personaAtomicDeletePerson]
+  .map((fn) => fn.toString()).join("\n\n");
+const safetyBlock = "  /* PERSONA_V4_SAFETY_RUNTIME_START */\n" +
+  safetyFunctions.split("\n").map((line) => "  " + line).join("\n") +
+  "\n  /* PERSONA_V4_SAFETY_RUNTIME_END */";
+const safetyRe = /  \/\* PERSONA_V4_SAFETY_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_V4_SAFETY_RUNTIME_END \*\//;
+if (safetyRe.test(html)) {
+  html = html.replace(safetyRe, safetyBlock);
+} else {
+  replaceOnce("  // js/storage.js", safetyBlock + "\n\n  // js/storage.js", "inject Persona v4 safety runtime");
+}
 
 const runtimeRe = /  \/\* PERSONA_HARDENING_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_HARDENING_RUNTIME_END \*\//;
 if (runtimeRe.test(html)) {
@@ -128,42 +141,46 @@ replaceOnce(oldKeyBinding, newKeyBinding, "session-only API key binding", 'root(
 
 insertAfterOnce("  async function loadDemoAndGo() {", "\n    SecretStore.clearApiKey();", "demo loading clears secret", "async function loadDemoAndGo() {\n    SecretStore.clearApiKey();");
 
-const encryptedParsedAnchor = `        const parsed = await decryptBackupJSON(encData, pw);`;
-insertAfterOnce(encryptedParsedAnchor, `\n        const importedSettings = prepareImportedSettings(parsed && parsed.settings);\n        SecretStore.clearApiKey();\n        if (parsed && parsed.settings) setSettings(importedSettings.settings);`, "encrypted import strips credentials", "const importedSettings = prepareImportedSettings(parsed && parsed.settings);");
-
-replaceOnce(
-  `        const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {};`,
-  `        const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};`,
-  "encrypted import data sanitization",
-  `const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};`
-);
-
-replaceOnce(
-  `        toast("Encrypted backup decrypted and restored.", "ok", "Restore complete");`,
-  `        toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed.", "ok", "Restore complete");`,
-  "encrypted restore security notice",
-  "External AI credentials were not restored for security. Enter the API key again if needed."
-);
-
-const oldValidateDataset = `  function validateDataset(data) {\n    const report = { people: 0, interactions: 0, observations: 0, predictions: 0, others: 0, errors: 0, sampleIssues: [] };\n    const count = (obj) => obj && typeof obj === "object" ? obj : {};\n    Object.entries(data || {}).forEach(([store, list]) => {\n      if (!Array.isArray(list)) return;\n      if (store === "people") report.people += list.length;\n      else if (store === "interactions") report.interactions += list.length;\n      else if (store === "observations") report.observations += list.length;\n      else if (store === "predictions") report.predictions += list.length;\n      else report.others += list.length;\n      list.forEach((rec) => {\n        const v = validateRecord(store, rec);\n        if (!v.valid) {\n          report.errors++;\n          report.sampleIssues.push({ store, id: rec && rec.id, errors: v.errors.slice(0, 2) });\n        }\n      });\n    });\n    return report;\n  }`;
-const newValidateDataset = `  function validateDataset(data) {\n    const report = { people: 0, interactions: 0, observations: 0, predictions: 0, others: 0, errors: 0, sampleIssues: [] };\n    const importedPersonIds = new Set((Array.isArray(data && data.people) ? data.people : []).map((p) => p && p.id).filter(Boolean));\n    Object.entries(data || {}).forEach(([store, list]) => {\n      if (!Array.isArray(list)) return;\n      if (store === "people") report.people += list.length;\n      else if (store === "interactions") report.interactions += list.length;\n      else if (store === "observations") report.observations += list.length;\n      else if (store === "predictions") report.predictions += list.length;\n      else report.others += list.length;\n      list.forEach((rec) => {\n        const v = validateRecord(store, rec);\n        const errors = v.errors.filter((error) => !(error === "References a person that does not exist" && rec && rec.personId && importedPersonIds.has(rec.personId)));\n        if (errors.length) {\n          report.errors++;\n          report.sampleIssues.push({ store, id: rec && rec.id, errors: errors.slice(0, 2) });\n        }\n      });\n    });\n    return report;\n  }`;
-replaceOnce(oldValidateDataset, newValidateDataset, "import-aware dataset validation", "const importedPersonIds = new Set(");
-
-const safeImportData = `    const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {};`;
-const safeImportDataNew = `    const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};\n    const importedSettings = prepareImportedSettings(parsed && parsed.settings);`;
-replaceOnce(safeImportData, safeImportDataNew, "normal import secret sanitization", "const importedSettings = prepareImportedSettings(parsed && parsed.settings);");
-
-const badSafeImportDbAnchor = `      const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);`;
-const safeImportDbAnchor = `      const [{ db: db2 }, { exportJSON: exportJSON2 }] = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);`;
-replaceOnce(badSafeImportDbAnchor, safeImportDbAnchor, "normal import dependency destructuring", safeImportDbAnchor);
-insertAfterOnce(safeImportDbAnchor, `\n      SecretStore.clearApiKey();\n      if (parsed && parsed.settings) setSettings(importedSettings.settings);`, "normal import clears credentials", "if (parsed && parsed.settings) setSettings(importedSettings.settings);");
-
-replaceOnce(
-  `      toast("Import applied. A safety backup was downloaded first.", "ok", "Import complete");`,
-  `      toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed. A safety backup was downloaded first.", "ok", "Import complete");`,
-  "normal restore security notice",
-  "A safety backup was downloaded first."
-);
+// The v4 import screens already use shared validated atomic restore. Do not
+// force obsolete v3.1 sequential-import patch text into these replacements.
+if (!html.includes("  async function applyVerifiedBackup(parsed, data, importedSettings) {")) {
+  const encryptedParsedAnchor = `        const parsed = await decryptBackupJSON(encData, pw);`;
+  insertAfterOnce(encryptedParsedAnchor, `\n        const importedSettings = prepareImportedSettings(parsed && parsed.settings);\n        SecretStore.clearApiKey();\n        if (parsed && parsed.settings) setSettings(importedSettings.settings);`, "encrypted import strips credentials", "const importedSettings = prepareImportedSettings(parsed && parsed.settings);");
+  
+  replaceOnce(
+    `        const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {};`,
+    `        const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};`,
+    "encrypted import data sanitization",
+    `const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};`
+  );
+  
+  replaceOnce(
+    `        toast("Encrypted backup decrypted and restored.", "ok", "Restore complete");`,
+    `        toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed.", "ok", "Restore complete");`,
+    "encrypted restore security notice",
+    "External AI credentials were not restored for security. Enter the API key again if needed."
+  );
+  
+  const oldValidateDataset = `  function validateDataset(data) {\n    const report = { people: 0, interactions: 0, observations: 0, predictions: 0, others: 0, errors: 0, sampleIssues: [] };\n    const count = (obj) => obj && typeof obj === "object" ? obj : {};\n    Object.entries(data || {}).forEach(([store, list]) => {\n      if (!Array.isArray(list)) return;\n      if (store === "people") report.people += list.length;\n      else if (store === "interactions") report.interactions += list.length;\n      else if (store === "observations") report.observations += list.length;\n      else if (store === "predictions") report.predictions += list.length;\n      else report.others += list.length;\n      list.forEach((rec) => {\n        const v = validateRecord(store, rec);\n        if (!v.valid) {\n          report.errors++;\n          report.sampleIssues.push({ store, id: rec && rec.id, errors: v.errors.slice(0, 2) });\n        }\n      });\n    });\n    return report;\n  }`;
+  const newValidateDataset = `  function validateDataset(data) {\n    const report = { people: 0, interactions: 0, observations: 0, predictions: 0, others: 0, errors: 0, sampleIssues: [] };\n    const importedPersonIds = new Set((Array.isArray(data && data.people) ? data.people : []).map((p) => p && p.id).filter(Boolean));\n    Object.entries(data || {}).forEach(([store, list]) => {\n      if (!Array.isArray(list)) return;\n      if (store === "people") report.people += list.length;\n      else if (store === "interactions") report.interactions += list.length;\n      else if (store === "observations") report.observations += list.length;\n      else if (store === "predictions") report.predictions += list.length;\n      else report.others += list.length;\n      list.forEach((rec) => {\n        const v = validateRecord(store, rec);\n        const errors = v.errors.filter((error) => !(error === "References a person that does not exist" && rec && rec.personId && importedPersonIds.has(rec.personId)));\n        if (errors.length) {\n          report.errors++;\n          report.sampleIssues.push({ store, id: rec && rec.id, errors: errors.slice(0, 2) });\n        }\n      });\n    });\n    return report;\n  }`;
+  replaceOnce(oldValidateDataset, newValidateDataset, "import-aware dataset validation", "const importedPersonIds = new Set(");
+  
+  const safeImportData = `    const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {};`;
+  const safeImportDataNew = `    const data = sanitizeSecretsDeep(parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : {}) || {};\n    const importedSettings = prepareImportedSettings(parsed && parsed.settings);`;
+  replaceOnce(safeImportData, safeImportDataNew, "normal import secret sanitization", "const importedSettings = prepareImportedSettings(parsed && parsed.settings);");
+  
+  const badSafeImportDbAnchor = `      const { db: db2, exportJSON: exportJSON2 } = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);`;
+  const safeImportDbAnchor = `      const [{ db: db2 }, { exportJSON: exportJSON2 }] = await Promise.all([Promise.resolve().then(() => (init_storage(), storage_exports)), Promise.resolve().then(() => (init_export(), export_exports))]);`;
+  replaceOnce(badSafeImportDbAnchor, safeImportDbAnchor, "normal import dependency destructuring", safeImportDbAnchor);
+  insertAfterOnce(safeImportDbAnchor, `\n      SecretStore.clearApiKey();\n      if (parsed && parsed.settings) setSettings(importedSettings.settings);`, "normal import clears credentials", "if (parsed && parsed.settings) setSettings(importedSettings.settings);");
+  
+  replaceOnce(
+    `      toast("Import applied. A safety backup was downloaded first.", "ok", "Import complete");`,
+    `      toast("Backup restored. External AI credentials were not restored for security. Enter the API key again if needed. A safety backup was downloaded first.", "ok", "Import complete");`,
+    "normal restore security notice",
+    "A safety backup was downloaded first."
+  );
+}
 
 await writeFile(indexPath, html, "utf8");
 console.log("Built Persona AI v3.1.1 hardened self-contained index.html");

@@ -376,6 +376,43 @@ async function runCoreCrudWorkflow(cdp) {
   await cdp.evaluate(`document.querySelector('#globalSearchInput').value=''; document.querySelector('#globalSearchInput').dispatchEvent(new Event('input',{bubbles:true}))`);
 }
 
+async function testRejectCorruptBackup(cdp) {
+  const before = canonical(await snapshot(cdp));
+  await openData(cdp);
+  const bad = JSON.stringify({
+    app: "PERSONA AI", schemaVersion: 7,
+    data: { people: [{ id: "corrupt-person", name: "Rejected" }], unknownStore: [] }
+  });
+  await attachJson(cdp, "#importFile", "corrupt.json", bad);
+  await sleep(350);
+  const modal = await cdp.evaluate('document.querySelector("#modalRoot")?.innerText || ""');
+  assert.equal(modal.includes("Import Preview"), false, "Invalid backup unexpectedly reached import confirmation");
+  assert.deepEqual(canonical(await snapshot(cdp)), before, "Rejected backup unexpectedly modified IndexedDB");
+}
+
+async function testAtomicPersonCascade(cdp) {
+  await openView(cdp, "people");
+  const before = await snapshot(cdp);
+  assert.ok(before.people.some((p) => p.id === "v31-person"), "Historical subject missing before person deletion test");
+  assert.equal(await cdp.evaluate('(() => { const el = document.querySelector(\'[data-action="viewPerson"][data-arg="v31-person"]\'); if (!el) return false; el.click(); return true; })()'), true, "Fixture person profile unavailable");
+  await waitUntil(cdp, '!!document.querySelector(\'[data-action="deletePerson"][data-arg="v31-person"]\')', "person delete control");
+  await cdp.evaluate('document.querySelector(\'[data-action="deletePerson"][data-arg="v31-person"]\').click()');
+  await waitUntil(cdp, '(document.querySelector("#modalRoot")?.innerText || "").includes("Delete person")', "person delete confirmation");
+  await clickModalByText(cdp, "Delete person");
+  // Observe persistent storage, not a transient DOM state: modal teardown can
+  // lag behind the completed IndexedDB transaction on slower CI browsers.
+  await waitUntil(cdp, '(async () => { const db = await new Promise((resolve, reject) => { const req = indexedDB.open("persona-ai"); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); try { return !(await new Promise((resolve, reject) => { const req = db.transaction("people", "readonly").objectStore("people").get("v31-person"); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); })); } finally { db.close(); } })()', "persisted primary person deletion", 15000);
+  const after = await snapshot(cdp);
+  assert.ok(!after.people.some((p) => p.id === "v31-person"), "Primary person record survived cascade deletion");
+  for (const [store, rows] of Object.entries(after)) {
+    assert.ok(!rows.some((row) => row.personId === "v31-person"), "Linked record survived person cascade in " + store);
+  }
+  assert.ok(after.people.some((p) => p.name === WORKFLOW_PERSON), "Deleting subject removed unrelated person");
+  await reload(cdp);
+  const persisted = await snapshot(cdp);
+  assert.deepEqual(canonical(persisted), canonical(after), "Deleted person or linked records returned after reload");
+}
+
 async function testLocalAnalysis(cdp, apiRequests, requestUrls) {
   await openSettings(cdp);
   await cdp.evaluate(`(() => {
@@ -522,9 +559,12 @@ try {
   assert.deepEqual(canonical(await snapshot(cdp)), encryptedBefore, "Encrypted backup -> reset -> restore changed the database");
   assert.equal(await cdp.evaluate(`sessionStorage.getItem(${JSON.stringify(SESSION_KEY)})`), null, "Encrypted restore restored API key");
 
+  await testRejectCorruptBackup(cdp);
+  await testAtomicPersonCascade(cdp);
+
   assert.deepEqual(runtimeErrors, [], `Runtime errors: ${runtimeErrors.join(" | ")}`);
   assert.equal(consoleMessages.some((x) => x.includes(MOCK_KEY)), false, "API key leaked to console");
-  console.log(`full-browser-acceptance: PASS (${EXPECTED_STORES.length} v3.1 stores; all product routes; core CRUD/search workflow; actual local analysis isolation; JSON backup/reset/restore; browser mocked external AI; encrypted backup/reset/restore)`);
+  console.log(`full-browser-acceptance: PASS (${EXPECTED_STORES.length} v3.1 stores; all product routes; core CRUD/search workflow; actual local analysis isolation; JSON backup/reset/restore; browser mocked external AI; encrypted backup/reset/restore; invalid-import rejection; atomic person cascade)`);
 } finally {
   cdp?.close();
   if (chromeProcess) {
