@@ -143,7 +143,9 @@ export function personaV4SearchRecords(query, data, filters = {}) {
         const cutoff = filters.cutoff || "";
         if (!date || (cutoff && date < cutoff)) continue;
       }
-      const priority = personaV4NormalizeContact(name) === q ? 4 :
+      const priority = store === "people" && personaV4NormalizeContact(name) === q ? 8 :
+        store === "people" && personaV4NormalizeContact(name).startsWith(q) ? 7 :
+        personaV4NormalizeContact(name) === q ? 4 :
         personaV4NormalizeContact(name).startsWith(q) ? 3 :
         norm.startsWith(q) ? 2 : 1;
       const title = store === "people" ? name : String(fields.map(k => r[k]).find(v => typeof v === "string" && v.trim()) || labels[store]).slice(0,90);
