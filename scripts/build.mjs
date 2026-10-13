@@ -130,7 +130,7 @@ replaceOnce(
   "    bindFilters();\n  }\n  function bindReportSections()",
   "    bindFilters();\n    personaV4BindPeopleActivity();\n  }\n  function bindReportSections()",
   "bind Stage 4 People/Activity timeline",
-  "    personaV4BindPeopleActivity();\n  }\n  function bindReportSections()"
+  "    personaV4BindPeopleActivity();"
 );
 
 // Stage 3 read-only domain facade and optional dashboard agenda. Neither
