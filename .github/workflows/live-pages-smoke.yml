@@ -36,10 +36,22 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Validate live smoke harness on pull requests
+        if: github.event_name == 'pull_request'
+        run: node --check scripts/live-pages-smoke.mjs
+
+      - name: Identify current certified main artifact
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "PERSONA_EXPECTED_BLOB_SHA=$(git hash-object index.html)" >> "$GITHUB_ENV"
+          echo "PERSONA_EXPECTED_BYTES=$(wc -c < index.html | tr -d '[:space:]')" >> "$GITHUB_ENV"
+          echo "PERSONA_EXPECTED_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")" >> "$GITHUB_ENV"
+          echo "Live smoke checks certified main bytes rather than a stale release-specific hash."
+
       - name: Open deployed Persona AI in real Chrome
+        if: github.event_name != 'pull_request'
         env:
           PERSONA_LIVE_URL: https://zubaerahmed13.github.io/Persona-AI/
-          PERSONA_EXPECTED_VERSION: '3.1.1'
-          PERSONA_EXPECTED_BLOB_SHA: fc9d71ccba14d9c77a4216339e10e75d3a7c5d40
-          PERSONA_EXPECTED_BYTES: '863903'
         run: node scripts/live-pages-smoke.mjs
