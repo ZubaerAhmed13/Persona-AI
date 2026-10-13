@@ -15,6 +15,7 @@ import {
   shouldUseExternalAI,
   openAICompatibleChat
 } from "../src/hardening/runtime.mjs";
+import { validatePersonaBackup, personaAtomicRestore, personaAtomicDeletePerson } from "../src/safety/data-safety.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -55,6 +56,18 @@ const injectedFunctions = [
 ].map((fn) => fn.toString()).join("\n\n");
 
 const runtimeBlock = `  /* PERSONA_HARDENING_RUNTIME_START */\n  var SECRET_SETTING_KEYS = Object.freeze(${JSON.stringify(SECRET_SETTING_KEYS)});\n  var SESSION_API_KEY = ${JSON.stringify(SESSION_API_KEY)};\n${injectedFunctions.split("\n").map((line) => "  " + line).join("\n")}\n  var SecretStore = createSecretStore();\n  function buildBackupPayload(settings, data) {\n    return makeBackupPayload(settings, data, {\n      app: "PERSONA AI",\n      version: APP_VERSION,\n      schemaVersion: SCHEMA_VERSION,\n      exportFormatVersion: EXPORT_FORMAT_VERSION,\n      exportedAt: (/* @__PURE__ */ new Date()).toISOString()\n    });\n  }\n  /* PERSONA_HARDENING_RUNTIME_END */`;
+
+const safetyFunctions = [validatePersonaBackup, personaAtomicRestore, personaAtomicDeletePerson]
+  .map((fn) => fn.toString()).join("\n\n");
+const safetyBlock = "  /* PERSONA_V4_SAFETY_RUNTIME_START */\n" +
+  safetyFunctions.split("\n").map((line) => "  " + line).join("\n") +
+  "\n  /* PERSONA_V4_SAFETY_RUNTIME_END */";
+const safetyRe = /  \/\* PERSONA_V4_SAFETY_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_V4_SAFETY_RUNTIME_END \*\//;
+if (safetyRe.test(html)) {
+  html = html.replace(safetyRe, safetyBlock);
+} else {
+  replaceOnce("  // js/storage.js", safetyBlock + "\n\n  // js/storage.js", "inject Persona v4 safety runtime");
+}
 
 const runtimeRe = /  \/\* PERSONA_HARDENING_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_HARDENING_RUNTIME_END \*\//;
 if (runtimeRe.test(html)) {
