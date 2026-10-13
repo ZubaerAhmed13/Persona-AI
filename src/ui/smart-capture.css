@@ -1,0 +1,15 @@
+/* Persona AI v4 Stage 5 – no external assets. */
+.v4-csv-list { display:grid;gap:8px;max-height:290px;overflow:auto;margin-top:12px;padding:4px 0; }
+.v4-csv-row { display:flex;align-items:start;gap:10px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;cursor:pointer; }
+.v4-csv-row input { flex:0 0 auto;margin-top:5px; }
+.v4-csv-row span { display:grid;gap:4px;min-width:0;overflow-wrap:anywhere; }
+.v4-csv-row strong { font-size:.85rem;color:var(--text-strong); }
+.v4-csv-row small { font-size:.74rem;color:var(--text-soft); }
+.v4-csv-row .v4-csv-warning { color:var(--warn); }
+.v4-capture-review { margin:12px 0;padding:16px; }
+.v4-capture-review h3 { margin-bottom:8px; }
+.v4-capture-review .form-grid { margin:10px 0; }
+.v4-capture-dup { font-size:.79rem;color:var(--warn);margin:10px 0 0; }
+#v4captureText { min-height:110px; }
+#v4csvPreview { min-height:30px; }
+@media(max-width:720px) { .v4-capture-review .form-grid { display:grid;grid-template-columns:1fr; } }
