@@ -46,7 +46,7 @@ const cssEnd = "/* PERSONA_V4_SMART_CAPTURE_CSS_END */";
 const css = await readFile(resolve(root,"src/ui/smart-capture.css"),"utf8");
 const cssText = cssStart+"\n"+css.trimEnd()+"\n"+cssEnd;
 if (html.includes(cssStart)) insertOrReplace(cssStart,cssEnd,cssText,"</style>");
-else replaceOne("</style>",cssText+"\n</style>","stage5 styles");
+else { const close=html.indexOf("</style>"); if (close<0) throw new Error("Stage 5 style closing tag missing"); html=html.slice(0,close)+cssText+"\n"+html.slice(close); }
 
 // Mount the contact-import launcher only on the People list and Data screen.
 if (!html.includes("personaV4MountImportControls(v);")) replaceOne(
