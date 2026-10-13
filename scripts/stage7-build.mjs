@@ -60,6 +60,29 @@ if(!html.includes('case "v4ConversationBrief":'))replaceExactly(
   ].join("\n"),"Copilot evidence actions"
 );
 
+// The compact Copilot shortcut must obey the same local-default policy; it
+// must not silently call the configured external provider through the legacy
+// copilotResponse pipeline.
+const quickStart=html.indexOf("  async function askCopilotQuick() {");
+const quickEnd=html.indexOf("  async function askCopilot() {",quickStart);
+if(quickStart<0||quickEnd<0||quickEnd-quickStart>3000)throw new Error("Quick Copilot handler boundaries changed");
+const quickReplacement=[
+  '  async function askCopilotQuick() {',
+  '    const input=document.getElementById("copQuickInput");',
+  '    const q=String(input?.value||"").trim();',
+  '    if(!q){toast("Ask a question about your recorded evidence.","warn");return;}',
+  '    const container=input.closest(".card");',
+  '    if(!container)return;',
+  '    container.querySelector(".copQuickOut")?.remove();',
+  '    const out=document.createElement("div");out.className="copQuickOut";out.style.marginTop="12px";',
+  '    const result=personaV4LocalEvidenceAnswer(q,getState().data,curPersonId(),todayLocal());',
+  '    out.innerHTML=personaV4Stage7AnswerHTML(result)+',
+  '      \'<div style="margin-top:10px"><button class="link-btn" data-action="openCopilotWorkspace">Open full Copilot workspace →</button></div>\';',
+  '    container.appendChild(out);',
+  '  }'
+].join("\n")+"\n";
+html=html.slice(0,quickStart)+quickReplacement+html.slice(quickEnd);
+
 // Main Copilot workspace Ask always remains local, independent of saved API
 // provider settings; an external request has a separate one-time review action.
 // Preserve old function name and quick Copilot invocation for backward compat.
