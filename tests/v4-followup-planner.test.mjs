@@ -64,8 +64,8 @@ test("Stage 6: user-visible followup filters distinguish postponement and avoid 
   })){saved.set(name,globalThis[name]);globalThis[name]=value;}
   try {
     const html=personaV4Stage6RenderFollowUps();
-    assert.match(html,/Overdue \(1\)/);
-    assert.match(html,/Today \(1\)/);
+    assert.match(html,/<strong>1<\/strong><span>Overdue<\/span>/);
+    assert.match(html,/<strong>1<\/strong><span>Today<\/span>/);
     assert.match(html,/Snoozed \(1\)/);
     assert.match(html,/data-action="v4SnoozeTask"/);
     assert.match(html,/&lt;Alex&gt;/);
