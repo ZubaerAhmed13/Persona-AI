@@ -1426,6 +1426,14 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   /* PERSONA_V4_SAFETY_RUNTIME_END */
 
   /* PERSONA_V4_WORKSPACE_RUNTIME_START */
+  function personaV4IsFollowUpDue(item, today) {
+    if (!item || item.completed === true || item.cancelled === true) return false;
+    const status = String(item.status || "").toLowerCase();
+    if (["done", "completed", "cancelled"].includes(status)) return false;
+    const due = item.dueDate ? String(item.dueDate).slice(0, 10) : "";
+    return !due || due <= today;
+  }
+  
   function personaV4InitWorkspace() {
     const nav = document.getElementById("primaryNav");
     if (!nav || document.getElementById("v4PrimaryNav")) return;
@@ -1550,14 +1558,9 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     });
     const count = document.getElementById("v4DueCount");
     if (count) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const due = (getState().data.followUps || []).filter((item) => {
-        if (item.completed || ["done", "completed", "cancelled"].includes(String(item.status || "").toLowerCase())) return false;
-        if (!item.dueDate) return false;
-        const date = new Date(item.dueDate);
-        return !isNaN(date) && date < new Date(today.getTime() + 864e5);
-      }).length;
+      const today = todayLocal();
+      const due = (getState().data.followUps || [])
+        .filter((item) => Boolean(item.dueDate) && personaV4IsFollowUpDue(item, today)).length;
       count.textContent = String(due);
       count.hidden = due === 0;
       count.setAttribute("aria-label", due + " follow-ups due");
@@ -1674,24 +1677,21 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     }
   }
   async function migrateV6ToV7(report) {
-    report.stage = "v6 \u2192 v7";
-    const txStore = await openDb().then((db2) => db2.transaction(STORES, "readwrite"));
-    for (const s of STORES) {
-      const os = txStore.objectStore(s);
-      const recs = await new Promise((res) => {
-        const r = os.getAll();
-        r.onsuccess = () => res(r.result || []);
-        r.onerror = () => res([]);
-      });
-      report.recordsChecked += recs.length;
-      for (const r of recs) {
-        if (r && typeof r === "object" && !r.schemaVersion) {
-          const fixed = { ...r, schemaVersion: SCHEMA_VERSION, updatedAt: r.updatedAt || r.createdAt || (/* @__PURE__ */ new Date()).toISOString() };
-          os.put(fixed);
-          report.schemaBackfilled += 1;
-        }
-      }
-    }
+    report.stage = "v6 → v7";
+    await repairPersonaLegacySchemas(await openDb(), STORES, SCHEMA_VERSION, report);
+  }
+  async function ensurePersonaV4SchemaRepair() {
+    const marker = "persona.v4.schemaRepair.v1";
+    try { if (localStorage.getItem(marker) === "done") return false; } catch {}
+    const report = { recordsChecked: 0, schemaBackfilled: 0, stage: "v6 → v7" };
+    await migrateV6ToV7(report);
+    try {
+      localStorage.setItem(marker, "done");
+      if (report.schemaBackfilled) localStorage.setItem("persona.migration.lastReport", JSON.stringify({
+        ...report, status: "✓ Repaired", recordsMigrated: report.schemaBackfilled
+      }));
+    } catch {}
+    return report.schemaBackfilled > 0;
   }
   function ensureStore(db2, s) {
     if (!db2.objectStoreNames.contains(s)) {
@@ -1819,14 +1819,13 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     return Promise.all(STORES.map(async (s) => ({ store: s, data: await db.getAll(s) })));
   }
   async function restoreSnapshot(snapshot) {
-    for (const { store, data } of snapshot) {
-      await db.clear(store);
-      for (const rec of data) await db.put(store, rec);
-    }
+    const data = Object.fromEntries(snapshot.map(({ store, data }) => [store, data]));
+    await personaAtomicRestore(await openDb(), data);
   }
   async function resetAll() {
     SecretStore.clearApiKey();
-    for (const s2 of STORES) await db.clear(s2);
+    // One commit for all 33 stores: failed/aborted resets keep old records.
+    await personaAtomicRestore(await openDb(), Object.fromEntries(STORES.map((s) => [s, []])));
     localStorage.removeItem("persona.meta.v1");
     const s = loadSettings();
     saveSettings({ ...s, onboardingDone: false });
@@ -2830,7 +2829,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     const s = getState();
     const out = [];
     const now = /* @__PURE__ */ new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = todayLocal();
     s.data.commitments.forEach((c) => {
       const due = (c.expectedCompletion || "").slice(0, 10);
       if (c.completed || c.cancelled) return;
@@ -2842,9 +2841,9 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
       if (!p.outcome || p.outcome === "pending") out.push({ kind: "prediction", personId: p.personId, text: p.predictionText || p.target || "Prediction", due: p.date, id: p.id });
     });
     s.data.followUps.forEach((f) => {
-      if (f.status === "done" || f.status === "snoozed") return;
+      if (!personaV4IsFollowUpDue(f, today)) return;
       const due = (f.dueDate || "").slice(0, 10);
-      if (due <= today || !due) out.push({ kind: "followUp", personId: f.personId, text: f.text, due, id: f.id });
+      out.push({ kind: "followUp", personId: f.personId, text: f.text, due, id: f.id });
     });
     s.data.memories.forEach((m) => {
       if (m.reminderDate && (m.reminderDate.slice(0, 10) === today || m.reminderDate.slice(0, 10) < today) && m.status !== "done") {
@@ -11262,6 +11261,8 @@ self.onmessage = function (e) {
     const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
     download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");
     await db2.replaceStoresAtomically(data);
+    // A restored historical backup may need idempotent schema backfill on reload.
+    try { localStorage.removeItem("persona.v4.schemaRepair.v1"); } catch {}
     // Credentials and settings are changed only when record transaction succeeded.
     SecretStore.clearApiKey();
     if (parsed && parsed.settings) setSettings(importedSettings.settings);
@@ -12504,7 +12505,9 @@ self.onmessage = function (e) {
       peopleCount: new Set(workerPayload.interactions.map((i) => i.personId)).size,
       commitments: commits,
       pendingPredictions: workerPayload.predictions.filter((p) => !p.outcome || p.outcome === "pending").length,
-      overdueFollowUps: workerPayload.followUps.filter((f) => f.status !== "done" && f.status !== "snoozed" && f.dueDate && new Date(f.dueDate) <= now).length,
+      overdueFollowUps: workerPayload.followUps.filter((f) =>
+        Boolean(f.dueDate) && personaV4IsFollowUpDue(f, todayLocal())
+      ).length,
       people: workerPayload.people.length
     });
     const summary = `${ints} interaction(s) this week, ${commits} commitment(s). ${pa.resolved} prediction(s) resolved at ${pa.accuracy}% accuracy.`;
@@ -13940,9 +13943,11 @@ self.onmessage = function (e) {
   function updatePrivacyPill2() {
     const pill = $("#privacyPill");
     const txt = $("#privacyPillText");
-    const enabled = getState().settings.aiEnabled;
-    pill.classList.toggle("remote", !!enabled);
-    txt.textContent = enabled ? "AI enabled" : "Local-only";
+    const s = getState().settings;
+    // A local analyst being enabled is not evidence that data leaves this device.
+    const external = shouldUseExternalAI(s) && validateExternalAIEndpoint(s.aiEndpoint).ok;
+    pill.classList.toggle("remote", external);
+    txt.textContent = external ? "External AI configured" : "Local-only";
   }
   function toggleUserMenu() {
     const existing = $("#userMenu");
@@ -14394,6 +14399,11 @@ self.onmessage = function (e) {
     updateThemeButton();
     updateNotifBadge();
     await loadAll();
+    try {
+      if (await ensurePersonaV4SchemaRepair()) await loadAll();
+    } catch {
+      toast("Legacy record repair is still pending. Your data remains available; the app will retry next launch.", "warn");
+    }
     const { loadDemo: loadDemo2 } = await Promise.resolve().then(() => (init_demo(), demo_exports));
     if (getState().settings.demoMode && !getState().data.people.length) await loadDemo2();
     syncContextSelect();
