@@ -1,0 +1,39 @@
+/* Persona AI: quiet, focused daily use. All historical screens remain available. */
+.v4ux-directory{margin-top:2px}
+.v4ux-directory-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end;padding:16px;background:var(--bg-raise);border:1px solid var(--border);border-radius:16px}
+.v4ux-directory-search,.v4ux-directory-sort{display:flex;flex-direction:column;gap:7px}
+.v4ux-directory-search{flex:1 1 230px;min-width:0}
+.v4ux-directory-sort{flex:0 1 200px;min-width:160px}
+.v4ux-directory-controls label{font-size:.78rem;font-weight:650;color:var(--text-soft)}
+.v4ux-directory-controls input,.v4ux-directory-controls select{min-height:44px}
+.v4ux-result-count{color:var(--text-soft);font-size:.79rem;margin:12px 0 14px}
+.v4ux-people-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,285px),1fr));gap:12px}
+.v4ux-person-card{padding:16px;display:flex;flex-direction:column;justify-content:space-between;gap:16px}
+.v4ux-person-card-top{display:flex;gap:12px;min-width:0;align-items:center}
+.v4ux-person-card-top .avatar-lg{flex:0 0 auto}
+.v4ux-person-identity{min-width:0;overflow-wrap:anywhere}
+.v4ux-person-identity strong{display:block;color:var(--text-strong);font-size:.96rem;letter-spacing:-.015em}
+.v4ux-person-identity p,.v4ux-person-identity small{color:var(--text-soft);font-size:.78rem;margin:5px 0 0;display:block}
+.v4ux-person-actions{display:flex;gap:8px;flex-wrap:wrap}
+.v4ux-person-actions button{min-height:42px;flex:1 1 auto}
+.v4ux-more{display:block;margin:20px auto 0;min-height:44px}
+.v4ux-empty{padding:34px 18px;text-align:center;background:var(--bg-raise);border:1px dashed var(--border);border-radius:15px}
+.v4ux-empty p{font-size:.9rem;color:var(--text-soft);margin:0 0 14px}
+.v4ux-dashboard-extras{margin-top:14px}
+.v4ux-extras-summary{border:1px solid var(--border);background:var(--bg-raise);border-radius:14px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none}
+.v4ux-extras-summary::-webkit-details-marker{display:none}
+.v4ux-extras-summary strong{font-size:.89rem;display:block;color:var(--text-strong)}
+.v4ux-extras-summary small{font-size:.77rem;color:var(--text-soft);display:block;margin-top:5px;line-height:1.45}
+.v4ux-extras-chevron{font-size:1.4rem;color:var(--accent);transform-origin:center;transition:transform .18s ease}
+.v4ux-dashboard-extras[open] .v4ux-extras-chevron{transform:rotate(180deg)}
+.v4ux-dashboard-extras[open] .v4ux-extras-summary{margin-bottom:16px}
+.v4ux-profile-more{max-width:100%;align-self:center}
+.v4ux-profile-more summary{min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raise);color:var(--text-strong);font-size:.83rem;cursor:pointer;list-style:none}
+.v4ux-profile-more summary::-webkit-details-marker{display:none}
+.v4ux-profile-more summary::after{content:'⌄';margin-left:12px;color:var(--accent)}
+.v4ux-profile-more[open] summary::after{content:'⌃'}
+.v4ux-profile-extra-buttons{display:flex;flex-wrap:wrap;gap:8px;padding:12px;margin-top:7px;background:var(--bg-raise);border:1px solid var(--border);border-radius:12px}
+.v4ux-profile-extra-buttons .btn{min-height:42px}
+.v4ux-directory :focus-visible,.v4ux-dashboard-extras summary:focus-visible,.v4ux-profile-more summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:700px){.v4ux-directory-controls{padding:12px}.v4ux-directory-sort{flex:1 1 180px}.v4ux-person-card{gap:12px}.v4ux-profile-more{width:100%}.v4ux-profile-more summary{justify-content:space-between}.v4ux-profile-extra-buttons{padding:8px}}
+@media(prefers-reduced-motion:reduce){.v4ux-extras-chevron{transition:none}}

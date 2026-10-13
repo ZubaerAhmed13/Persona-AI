@@ -576,6 +576,74 @@ async function testV4Stage9MobileAccessibility(cdp) {
   assert.deepEqual(canonical(await snapshot(cdp)),before,"Stage 9 responsive/a11y interactions mutated user data");
 }
 
+async function testDailyUsePolish(cdp) {
+  const original=canonical(await snapshot(cdp));
+  await openView(cdp,"dashboard");
+  const hasExtras=await cdp.evaluate('(() => { const el=document.querySelector("#view .v4ux-dashboard-extras");return {exists:!!el,collapsed:!!el&&!el.open,count:el?.querySelectorAll(".card").length||0};})()');
+  assert.equal(hasExtras.exists,true,"Today lacks an expandable full dashboard");
+  assert.equal(hasExtras.collapsed,true,"Today should start with essentials");
+  assert.ok(hasExtras.count>0,"Original dashboard modules were lost rather than disclosed");
+  await cdp.evaluate('document.querySelector(".v4ux-extras-summary").click()');
+  assert.equal(await cdp.evaluate('document.querySelector(".v4ux-dashboard-extras").open'),true);
+
+  // Add temporary people directly to the local fixture to test a realistically
+  // populated directory without touching any of the original 33-store data.
+  await cdp.evaluate(`(async () => {
+    const db=await new Promise((resolve,reject)=>{const req=indexedDB.open("persona-ai");req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+    try{
+      await new Promise((resolve,reject)=>{const tx=db.transaction(["people"],"readwrite");tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);
+        const st=tx.objectStore("people");
+        for(let i=0;i<95;i++) st.put({id:"v4ux-test-"+i,name:"UX Bench Person "+String(i).padStart(3,"0"),relationshipType:"Colleague",schemaVersion:7});
+      });
+    }finally{db.close();}
+  })()`);
+  await reload(cdp);
+  await openView(cdp,"people");
+  const initial=await cdp.evaluate('(() => ({cards:document.querySelectorAll("#v4uxPeopleGrid .person-card").length,text:document.querySelector("#v4uxPeopleCount")?.textContent||""}))()');
+  assert.equal(initial.cards,36,"Directory must not render all large-dataset cards");
+  assert.match(initial.text,/of/);
+  await cdp.evaluate('(() => {const el=document.querySelector("#v4uxPeopleQuery");el.value="UX Bench Person 04";el.dispatchEvent(new Event("input",{bubbles:true}));})()');
+  const filtered=await cdp.evaluate('(() => ({cards:document.querySelectorAll("#v4uxPeopleGrid .person-card").length,count:document.querySelector("#v4uxPeopleCount")?.textContent||""}))()');
+  assert.equal(filtered.cards,10,"Search must filter name matches without a page reload");
+  await cdp.evaluate('(() => {const el=document.querySelector("#v4uxPeopleQuery");el.value="";el.dispatchEvent(new Event("input",{bubbles:true}));})()');
+  await cdp.evaluate('document.querySelector("[data-action=\\"v4uxPeopleMore\\"]").click()');
+  assert.equal(await cdp.evaluate('document.querySelectorAll("#v4uxPeopleGrid .person-card").length'),72);
+
+  // Preserve direct profile navigation and make frequent actions immediately
+  // discoverable while keeping all the advanced actions one disclosure away.
+  await cdp.evaluate('document.querySelector("#v4uxPeopleGrid .person-card [data-action=\\"viewPerson\\"]").click()');
+  await waitUntil(cdp,'!!document.querySelector(".v4ux-profile-more")',"compact profile actions");
+  const profile=await cdp.evaluate('(() => {const p=document.querySelector("#view .person-header");return {primary:[...p.querySelectorAll(".head-actions > button")].map(e=>e.dataset.action),more:p.querySelector(".v4ux-profile-more"),advanced:p.querySelectorAll(".v4ux-profile-extra-buttons button").length};})()');
+  assert.ok(profile.primary.includes("quickCapture"),"Primary Log Interaction button lost");
+  assert.ok(profile.primary.includes("addMemory"),"Primary Memory button lost");
+  assert.ok(profile.advanced>=5,"Historical advanced profile actions were removed");
+  await cdp.evaluate('document.querySelector(".v4ux-profile-more summary").click()');
+  assert.equal(await cdp.evaluate('document.querySelector(".v4ux-profile-more").open'),true);
+
+  // Keyboard-first search should work without interacting with the mouse.
+  await cdp.evaluate('document.dispatchEvent(new KeyboardEvent("keydown",{key:"k",ctrlKey:true,bubbles:true,cancelable:true}))');
+  assert.equal(await cdp.evaluate('document.activeElement?.id'),"globalSearchInput","Ctrl+K did not focus global search");
+  await cdp.evaluate('(() => {const el=document.querySelector("#globalSearchInput");el.value="UX Bench Person 040";el.dispatchEvent(new Event("input",{bubbles:true}));})()');
+  await waitUntil(cdp,'document.querySelectorAll("#searchResults [data-sr]").length>0',"global search suggestions");
+  await cdp.evaluate('document.querySelector("#globalSearchInput").dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true,cancelable:true}))');
+  assert.equal(await cdp.evaluate('document.activeElement?.hasAttribute("data-sr")'),true,"ArrowDown did not focus a result");
+  await cdp.evaluate('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true,cancelable:true}))');
+  await waitUntil(cdp,'(document.querySelector("#view .ph-name")?.textContent||"")==="UX Bench Person 040"',"keyboard search selection");
+
+  // Only temporary test people are removed. Existing backup fixtures, IDs and
+  // relationships must remain exactly as they were before the UX test.
+  await cdp.evaluate(`(async () => {
+    const db=await new Promise((resolve,reject)=>{const req=indexedDB.open("persona-ai");req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+    try{
+      await new Promise((resolve,reject)=>{const tx=db.transaction(["people"],"readwrite");tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);
+        const st=tx.objectStore("people");for(let i=0;i<95;i++)st.delete("v4ux-test-"+i);
+      });
+    }finally{db.close();}
+  })()`);
+  await reload(cdp);
+  assert.deepEqual(canonical(await snapshot(cdp)),original,"Daily UX actions mutated existing personal records");
+}
+
 async function runCoreCrudWorkflow(cdp) {
   await openView(cdp, "people");
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
@@ -927,6 +995,7 @@ try {
   await testV4Stage7GroundedCopilot(cdp);
   await testV4Stage8EvidenceNetwork(cdp);
   await testV4Stage9MobileAccessibility(cdp);
+  await testDailyUsePolish(cdp);
   await testV4PeopleActivity(cdp);
   await runCoreCrudWorkflow(cdp);
   await testV4SmartCaptureAndContacts(cdp);

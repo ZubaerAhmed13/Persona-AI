@@ -38,6 +38,8 @@ for(const id of [6,7,8,9]){
 }
 assert.ok(html.includes("PERSONA_V4_SMART_CAPTURE_START"),"Stage 5 reviewed capture contract missing");
 assert.ok(html.includes("PERSONA_V4_SMART_CAPTURE_CSS_START"),"Stage 5 capture styles missing");
+assert.ok(html.includes("PERSONA_V4_DAILY_UX_START"),"Daily-use UX bundle missing");
+assert.ok(html.includes("PERSONA_V4_DAILY_UX_CSS_START"),"Daily-use CSS bundle missing");
 for(const key of [
   "PERSONA_HARDENING_RUNTIME_START","PERSONA_V4_SAFETY_RUNTIME_START",
   "v4s9ModalTitle","personaV4Stage9HandleModalKey",
@@ -62,7 +64,7 @@ try{
   execFileSync(process.execPath,["scripts/build.mjs"],{cwd:root,timeout:120_000,stdio:"pipe"});
   for(const file of ["scripts/fix-functional-tags.mjs","scripts/stage5-build.mjs",
     "scripts/stage6-build.mjs","scripts/stage7-build.mjs","scripts/stage8-build.mjs",
-    "scripts/stage9-build.mjs","scripts/enforce-hardening-policy.mjs",
+    "scripts/stage9-build.mjs","scripts/daily-ux-build.mjs","scripts/enforce-hardening-policy.mjs",
     "scripts/finalize-html-safety.mjs"]){
     execFileSync(process.execPath,[file],{cwd:root,timeout:120_000,stdio:"pipe"});
   }
