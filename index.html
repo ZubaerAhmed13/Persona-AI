@@ -614,6 +614,154 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   .content { padding-bottom: 76px; }
 }
 
+
+/* PERSONA_V4_WORKSPACE_CSS_START */
+/* PERSONA 4.0 Stage 2: polished, accessible, local-first workspace layer.
+   Injected directly into index.html for the offline one-file deliverable. */
+:root {
+  --v4-radius: 18px;
+  --v4-focus: 0 0 0 3px var(--accent-soft);
+}
+.app-shell { background: var(--bg); }
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right-color: var(--border-soft);
+}
+.sidebar-brand { padding: 25px 19px 19px; }
+.logo-mark { width: 42px; height: 42px; border-radius: 14px; }
+.brand-name { font-size: 1.04rem; letter-spacing: -.025em; }
+.brand-sub { letter-spacing: .085em; }
+.main-column { background: var(--bg); }
+.topbar { padding: 13px clamp(16px, 2vw, 28px); background: var(--bg-raise); }
+.search-wrap { max-width: 560px; }
+#globalSearchInput { border-radius: 12px; min-height: 42px; background: var(--bg-input); }
+.content { padding: clamp(18px, 2.8vw, 36px) clamp(16px, 3vw, 42px) 90px; }
+.view { max-width: 1280px; }
+.page-head { align-items: center; gap: 20px; margin-bottom: 24px; }
+.page-title { font-size: clamp(1.55rem, 2.5vw, 2rem); letter-spacing: -.035em; line-height: 1.2; }
+.page-desc { font-size: .9rem; line-height: 1.65; margin-top: 6px; }
+.card, .metric-card {
+  border-radius: var(--v4-radius);
+  box-shadow: var(--shadow-sm);
+}
+.card { padding: clamp(16px, 2vw, 24px); }
+.metric-card { padding: 20px; }
+.metric-value { font-size: 1.9rem; letter-spacing: -.045em; }
+.card-title { letter-spacing: .055em; }
+.btn { min-height: 37px; border-radius: 11px; }
+.btn-primary { font-weight: 650; }
+.btn:focus-visible, .chip:focus-visible, .nav-item:focus-visible, .v4-core-link:focus-visible,
+.v4-advanced-toggle:focus-visible, .mnav-item:focus-visible, .tag-opt:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: var(--v4-focus);
+}
+.person-card, .insight-card { transition: transform .18s ease, box-shadow .18s ease; }
+@media (hover:hover) and (prefers-reduced-motion: no-preference) {
+  .person-card:hover, .insight-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+}
+#v4PrimaryNav { flex: 0 0 auto; padding: 1px 10px 12px; }
+.v4-nav-eyebrow {
+  padding: 12px 12px 8px; color: var(--text-muted); font-size: .68rem;
+  text-transform: uppercase; font-weight: 700; letter-spacing: .13em;
+}
+.v4-core-link {
+  position: relative; width: 100%; display: flex; align-items: center; gap: 11px;
+  border: 1px solid transparent; background: transparent; color: var(--text-soft);
+  padding: 11px 12px; margin: 2px 0; border-radius: 12px;
+  text-align: left; font-size: .89rem; font-weight: 600;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.v4-core-link:hover { background: var(--hover); color: var(--text-strong); }
+.v4-core-link.active { background: var(--accent-soft); color: var(--accent); border-color: var(--border-soft); }
+.v4-core-ico { width: 22px; height: 22px; display: grid; place-items: center; flex: 0 0 auto; }
+.v4-core-label { flex: 1; }
+.v4-count { display: grid; place-items: center; min-width: 22px; height: 22px; font-size: .69rem; font-weight: 700;
+  padding: 0 5px; border-radius: 7px; background: var(--warn-soft); color: var(--warn); }
+.v4-sidebar-tools { padding: 0 10px 10px; }
+.v4-advanced-toggle {
+  display: flex; width: 100%; align-items: center; justify-content: space-between;
+  background: transparent; border: 1px solid var(--border); border-radius: 11px;
+  padding: 10px 12px; color: var(--text-soft); font-size: .8rem; font-weight: 650;
+}
+.v4-advanced-toggle:hover { background: var(--hover); color: var(--text-strong); }
+.v4-advanced-toggle[aria-expanded="true"] .v4-chevron { transform: rotate(180deg); }
+.v4-chevron { display: inline-block; transition: transform .18s; }
+#primaryNav[hidden] { display: none !important; }
+#primaryNav { border-top: 1px solid var(--border-soft); padding-top: 8px; }
+#primaryNav .nav-item { padding: 9px 10px; border-radius: 10px; }
+#primaryNav .nav-label { font-weight: 700; }
+.sidebar-footer { margin-top: auto; }
+.v4-followup-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.v4-followup-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.v4-followup-card { padding: 18px 20px; border-radius: 16px; background: var(--card); border: 1px solid var(--border); }
+.v4-followup-card strong { display: block; color: var(--text-strong); font-size: 1.8rem; line-height: 1.1; letter-spacing: -.05em; }
+.v4-followup-card span { display: block; color: var(--text-muted); font-size: .77rem; margin-top: 8px; }
+.v4-followup-list { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 8px 20px; }
+.v4-followup-row { display: flex; align-items: flex-start; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--border-soft); }
+.v4-followup-row:last-child { border-bottom: 0; }
+.v4-followup-title { flex: 1; min-width: 0; }
+.v4-followup-title strong { display: block; overflow-wrap: anywhere; color: var(--text-strong); }
+.v4-followup-meta { font-size: .77rem; color: var(--text-soft); margin-top: 5px; }
+.v4-followup-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.v4-overdue { color: var(--bad); }
+.v4-workspace-breadcrumb { color: var(--text-muted); font-size: .72rem; white-space: nowrap; font-weight: 600; letter-spacing: .03em; }
+.v4-workspace-breadcrumb strong { color: var(--text-strong); }
+.v4-simple-hero {
+  padding: 14px 18px; margin-bottom: 18px; border: 1px solid var(--border-soft);
+  border-radius: 14px; background: var(--bg-raise);
+}
+.v4-simple-hero .muted { margin: 0; }
+@media (max-width: 1040px) {
+  .context-select .ctx-label { display: none; }
+  .v4-workspace-breadcrumb { display: none; }
+}
+@media (max-width: 720px) {
+  .sidebar { overflow-y: auto; }
+  #v4PrimaryNav { padding-bottom: 2px; }
+  .content { padding: 18px 14px 90px; }
+  .topbar { padding: 9px 12px; }
+  .quick-add { padding: 8px 12px; }
+  .card { padding: 16px; }
+  .v4-followup-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .v4-followup-card { padding: 12px 9px; }
+  .v4-followup-card strong { font-size: 1.4rem; }
+  .v4-followup-card span { font-size: .69rem; }
+  .v4-followup-row { flex-wrap: wrap; gap: 10px; }
+  .v4-followup-actions { width: 100%; justify-content: flex-start; }
+  .page-title { font-size: 1.55rem; }
+}
+@media (max-width: 380px) {
+  .v4-followup-grid { grid-template-columns: 1fr; }
+  .v4-followup-card { display: flex; justify-content: space-between; align-items: center; }
+  .v4-followup-card span { margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .person-card, .insight-card, .v4-core-link, .v4-chevron { transition: none !important; }
+}
+
+/* Six predictable destinations on mobile; the quick-capture FAB is retained. */
+.v4-mobile-nav { display: none; }
+@media (max-width: 720px) {
+  #mobileNav { display: none !important; }
+  .v4-mobile-nav {
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+    padding: 7px 3px calc(8px + env(safe-area-inset-bottom));
+    background: var(--bg-raise); border-top: 1px solid var(--border);
+    box-shadow: 0 -6px 18px rgba(0,0,0,.035);
+  }
+  .v4-mobile-link {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; min-width: 0; min-height: 48px; padding: 5px 2px;
+    border-radius: 10px; border: 0; background: transparent; color: var(--text-soft);
+    font-size: clamp(.55rem, 1.8vw, .69rem); font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .v4-mobile-link.active { color: var(--accent); background: var(--accent-soft); }
+  .v4-mobile-link:hover { background: var(--hover); }
+  .v4-mobile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .v4-mobile-icon { display: grid; place-items: center; }
+}
+/* PERSONA_V4_WORKSPACE_CSS_END */
 </style>
 </head>
 <body>
@@ -1245,6 +1393,19 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
         tx.oncomplete = () => { if (!settled) { settled = true; resolve(); } };
         tx.onabort = () => fail(tx.error || new Error("Person deletion was aborted. No records were deleted."));
         tx.objectStore("people").delete(personId);
+        // Older audit entries sometimes omit personId but point directly at
+        // people[personId] via (store, recordId). Remove those as well.
+        if (stores.includes("auditLog")) {
+          const audit = tx.objectStore("auditLog");
+          const scan = audit.openCursor();
+          scan.onsuccess = () => {
+            const cursor = scan.result;
+            if (!cursor) return;
+            const record = cursor.value;
+            if (record && record.store === "people" && record.recordId === personId) cursor.delete();
+            cursor.continue();
+          };
+        }
         for (const name of stores) {
           if (name === "people") continue;
           const store = tx.objectStore(name);
@@ -1263,6 +1424,193 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     });
   }
   /* PERSONA_V4_SAFETY_RUNTIME_END */
+
+  /* PERSONA_V4_WORKSPACE_RUNTIME_START */
+  function personaV4InitWorkspace() {
+    const nav = document.getElementById("primaryNav");
+    if (!nav || document.getElementById("v4PrimaryNav")) return;
+    const core = [
+      ["dashboard", "Today", "dashboard"],
+      ["people", "People", "people"],
+      ["interactions", "Activity", "interactions"],
+      ["followups", "Follow-ups", "reliability"],
+      ["patterns", "Insights", "patterns"],
+      ["copilot", "Copilot", "spark"]
+    ];
+    const coreNav = document.createElement("nav");
+    coreNav.id = "v4PrimaryNav";
+    coreNav.setAttribute("aria-label", "Main workspace");
+    const heading = document.createElement("div");
+    heading.className = "v4-nav-eyebrow";
+    heading.textContent = "Workspace";
+    coreNav.appendChild(heading);
+    for (const [view, label, ico] of core) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "v4-core-link";
+      button.dataset.v4View = view;
+      button.setAttribute("aria-label", label);
+      const image = document.createElement("span");
+      image.className = "v4-core-ico";
+      image.setAttribute("aria-hidden", "true");
+      image.innerHTML = icon(ico, 19);
+      const textNode = document.createElement("span");
+      textNode.className = "v4-core-label";
+      textNode.textContent = label;
+      button.append(image, textNode);
+      if (view === "followups") {
+        const count = document.createElement("span");
+        count.className = "v4-count";
+        count.hidden = true;
+        count.id = "v4DueCount";
+        button.appendChild(count);
+      }
+      button.addEventListener("click", () => {
+        getState().focusPersonId = null;
+        navigate2(view);
+        document.getElementById("sidebar")?.classList.remove("open");
+      });
+      coreNav.appendChild(button);
+    }
+    nav.before(coreNav);
+    // On small screens the same six destinations replace the legacy mobile
+    // shortcut strip. The floating capture button remains available.
+    const legacyMobile = document.getElementById("mobileNav");
+    if (legacyMobile && !document.getElementById("v4MobileNav")) {
+      const mobile = document.createElement("nav");
+      mobile.id = "v4MobileNav";
+      mobile.className = "v4-mobile-nav";
+      mobile.setAttribute("aria-label", "Mobile workspace");
+      for (const [view, label, ico] of core) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "v4-mobile-link";
+        button.dataset.v4Mobile = view;
+        button.setAttribute("aria-label", label);
+        const graphic = document.createElement("span");
+        graphic.className = "v4-mobile-icon";
+        graphic.setAttribute("aria-hidden", "true");
+        graphic.innerHTML = icon(ico, 19);
+        const word = document.createElement("span");
+        word.textContent = label;
+        button.append(graphic, word);
+        button.addEventListener("click", () => {
+          getState().focusPersonId = null;
+          navigate2(view);
+          document.getElementById("sidebar")?.classList.remove("open");
+        });
+        mobile.appendChild(button);
+      }
+      legacyMobile.after(mobile);
+    }
+    const tools = document.createElement("div");
+    tools.className = "v4-sidebar-tools";
+    const advanced = document.createElement("button");
+    advanced.type = "button";
+    advanced.id = "v4AdvancedToggle";
+    advanced.className = "v4-advanced-toggle";
+    advanced.setAttribute("aria-controls", "primaryNav");
+    advanced.innerHTML = '<span>All tools · 34 legacy views</span><span class="v4-chevron" aria-hidden="true">⌄</span>';
+    tools.appendChild(advanced);
+    nav.before(tools);
+    let expanded = false;
+    try { expanded = localStorage.getItem("persona.ui.v4.allToolsExpanded") === "1"; } catch {}
+    const setExpanded = (value) => {
+      expanded = !!value;
+      nav.hidden = !expanded;
+      advanced.setAttribute("aria-expanded", String(expanded));
+      try { localStorage.setItem("persona.ui.v4.allToolsExpanded", expanded ? "1" : "0"); } catch {}
+    };
+    advanced.addEventListener("click", () => setExpanded(!expanded));
+    setExpanded(expanded);
+  
+    // Original sidebar nav remains functional and is shown on demand. Its
+    // 34 historic data-view/aria-label contracts remain completely untouched.
+    subscribe("data", () => personaV4SyncWorkspace(getState().view));
+    personaV4SyncWorkspace(getState().view);
+  }
+  
+  function personaV4SyncWorkspace(view) {
+    const labels = {
+      dashboard: "Today", people: "People", interactions: "Activity",
+      followups: "Follow-ups", patterns: "Insights", copilot: "Copilot"
+    };
+    const active = labels[view] || null;
+    document.querySelectorAll("#v4PrimaryNav [data-v4-view]").forEach((button) => {
+      const selected = button.dataset.v4View === view;
+      button.classList.toggle("active", selected);
+      if (selected) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
+    document.querySelectorAll("#v4MobileNav [data-v4-mobile]").forEach((button) => {
+      const selected = button.dataset.v4Mobile === view;
+      button.classList.toggle("active", selected);
+      if (selected) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
+    const count = document.getElementById("v4DueCount");
+    if (count) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const due = (getState().data.followUps || []).filter((item) => {
+        if (item.completed || ["done", "completed", "cancelled"].includes(String(item.status || "").toLowerCase())) return false;
+        if (!item.dueDate) return false;
+        const date = new Date(item.dueDate);
+        return !isNaN(date) && date < new Date(today.getTime() + 864e5);
+      }).length;
+      count.textContent = String(due);
+      count.hidden = due === 0;
+      count.setAttribute("aria-label", due + " follow-ups due");
+    }
+    const toggle = document.getElementById("v4AdvancedToggle");
+    if (toggle) toggle.classList.toggle("active", !active);
+  }
+  
+  function renderPersonaV4FollowUps() {
+    const s = getState();
+    const pid = s.contextPersonId === "all" ? null : s.contextPersonId;
+    const items = (s.data.followUps || [])
+      .filter((item) => !pid || item.personId === pid);
+    const done = (item) => item.completed === true || ["done", "completed", "cancelled"].includes(String(item.status || "").toLowerCase());
+    const today = todayLocal();
+    const key = (item) => item.dueDate ? String(item.dueDate).slice(0, 10) : "";
+    const pending = items.filter((item) => !done(item)).sort((a, b) => {
+      const ak = key(a) || "9999-12-31";
+      const bk = key(b) || "9999-12-31";
+      return ak.localeCompare(bk) || String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+    });
+    const overdue = pending.filter((item) => key(item) && key(item) < today).length;
+    const dueToday = pending.filter((item) => key(item) === today).length;
+    const finished = items.length - pending.length;
+    const rows = pending.map((item) => {
+      const d = key(item);
+      const old = d && d < today;
+      const label = item.text || item.title || item.description || "Follow-up";
+      const who = item.personId ? personName(item.personId) : "General";
+      return '<div class="v4-followup-row">' +
+        '<div class="v4-followup-title"><strong>' + esc2(label) + '</strong>' +
+        '<div class="v4-followup-meta">' + esc2(who) +
+        (d ? ' · <span class="' + (old ? "v4-overdue" : "") + '">' + (old ? "Overdue · " : "Due ") + esc2(d) + '</span>' : ' · No due date') +
+        '</div></div>' +
+        '<div class="v4-followup-actions">' +
+        '<button class="btn btn-sm btn-primary" data-action="completeFollowUp" data-arg="' + esc2(item.id) + '">Complete</button>' +
+        '<button class="btn btn-sm" data-action="snoozeFollowUp" data-arg="' + esc2(item.id) + '">+3 days</button>' +
+        (item.personId ? '<button class="btn btn-sm" data-action="viewPerson" data-arg="' + esc2(item.personId) + '">Person</button>' : '') +
+        '</div></div>';
+    }).join("");
+    return '<div class="page-head">' +
+      '<div><div class="page-title">Follow-ups</div>' +
+      '<div class="page-desc">One place for the next conversations and reminders in your records. Prioritized by due date, with no external sync.</div></div>' +
+      '<div class="head-actions"><button class="btn btn-primary" data-action="addFollowUp">+ New follow-up</button></div></div>' +
+      '<div class="v4-followup-grid" role="group" aria-label="Follow-up overview">' +
+      '<div class="v4-followup-card"><strong>' + pending.length + '</strong><span>Open</span></div>' +
+      '<div class="v4-followup-card"><strong>' + (overdue + dueToday) + '</strong><span>Due now</span></div>' +
+      '<div class="v4-followup-card"><strong>' + finished + '</strong><span>Completed</span></div></div>' +
+      (rows ? '<div class="v4-followup-list">' + rows + '</div>' :
+        '<div class="card empty"><h3>All caught up</h3><p>No pending follow-ups in this context.</p><button class="btn btn-primary" data-action="addFollowUp">Add a follow-up</button></div>') +
+      '<div class="v4-simple-hero" style="margin-top:18px"><p class="muted">Need a wider view of commitments, predictions, and unresolved decisions? Open <button class="link-btn" data-goto="openloops">Open Loops</button>.</p></div>';
+  }
+  /* PERSONA_V4_WORKSPACE_RUNTIME_END */
 
   // js/storage.js
   var storage_exports = {};
@@ -7469,6 +7817,7 @@ self.onmessage = function (e) {
       commitments: renderCommitmentCenter,
       copilot: renderCopilot,
       openloops: renderOpenLoops,
+      followups: renderPersonaV4FollowUps,
       playbook: renderPlaybook,
       situations: renderSituations,
       signals: renderSignals,
@@ -13556,6 +13905,7 @@ self.onmessage = function (e) {
     if (arg) getState().focusPersonId = arg;
     setView(view);
     updateNavActive();
+    personaV4SyncWorkspace(view);
     render();
   }
   function renderCurrent() {
@@ -14032,6 +14382,7 @@ self.onmessage = function (e) {
   }
   async function boot() {
     initNav();
+    personaV4InitWorkspace();
     initMobileNav();
     registerSW();
     initTopbar();

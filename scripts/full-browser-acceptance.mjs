@@ -413,6 +413,40 @@ async function testAtomicPersonCascade(cdp) {
   assert.deepEqual(canonical(persisted), canonical(after), "Deleted person or linked records returned after reload");
 }
 
+async function testV4Workspace(cdp) {
+  const names = await cdp.evaluate('Array.from(document.querySelectorAll("#v4PrimaryNav [data-v4-view]"), b => b.dataset.v4View)');
+  assert.deepEqual(names, ["dashboard", "people", "interactions", "followups", "patterns", "copilot"],
+    "v4 top-level workspace destinations changed");
+  assert.equal(await cdp.evaluate('document.querySelector("#primaryNav").hidden'), true,
+    "Historical modules should be available on demand by default");
+  await cdp.evaluate('document.querySelector("#v4AdvancedToggle").click()');
+  assert.equal(await cdp.evaluate('document.querySelector("#primaryNav").hidden'), false, "All tools cannot be expanded");
+  assert.equal(await cdp.evaluate('document.querySelector("#v4AdvancedToggle").getAttribute("aria-expanded")'), "true");
+  await cdp.evaluate('document.querySelector("#v4AdvancedToggle").click()');
+  await cdp.evaluate('document.querySelector(\'#v4PrimaryNav [data-v4-view="followups"]\').click()');
+  await waitUntil(cdp, '(document.querySelector(".page-title")?.innerText || "") === "Follow-ups"', "actionable follow-ups page");
+  assert.equal(await cdp.evaluate('!!document.querySelector(\'#v4PrimaryNav [data-v4-view="followups"][aria-current="page"]\')'), true);
+  assert.equal(await cdp.evaluate('!!document.querySelector(\'[data-action="completeFollowUp"][data-arg="v31-followup"]\')'), true,
+    "Existing v3.1 follow-up is not actionable in v4 workspace");
+  await cdp.evaluate('document.querySelector(\'[data-action="completeFollowUp"][data-arg="v31-followup"]\').click()');
+  await waitUntil(cdp, '!document.querySelector(\'[data-action="completeFollowUp"][data-arg="v31-followup"]\')', "completed v4 follow-up");
+  const records = await snapshot(cdp);
+  assert.equal(records.followUps.find((r) => r.id === "v31-followup")?.status, "done",
+    "v4 follow-up completion did not persist to existing IndexedDB store");
+  await cdp.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+  try {
+    await waitUntil(cdp, 'getComputedStyle(document.querySelector("#v4MobileNav")).display === "grid"', "six-option mobile navigation");
+    const mobile = await cdp.evaluate('Array.from(document.querySelectorAll("#v4MobileNav [data-v4-mobile]"), b => b.dataset.v4Mobile)');
+    assert.deepEqual(mobile, names, "Mobile workspace omitted a primary destination");
+    await cdp.evaluate('document.querySelector(\'#v4MobileNav [data-v4-mobile="copilot"]\').click()');
+    await waitUntil(cdp, '(document.querySelector(".page-title")?.innerText || "").includes("Copilot")', "mobile Copilot navigation");
+    assert.equal(await cdp.evaluate('!!document.querySelector(\'#v4MobileNav [data-v4-mobile="copilot"][aria-current="page"]\')'), true);
+  } finally {
+    await cdp.send("Emulation.clearDeviceMetricsOverride");
+  }
+  await openView(cdp, "people");
+}
+
 async function testLocalAnalysis(cdp, apiRequests, requestUrls) {
   await openSettings(cdp);
   await cdp.evaluate(`(() => {
@@ -536,6 +570,7 @@ try {
   assertFixture(await snapshot(cdp), "v3.1 compatibility import");
 
   await regressAllViews(cdp, runtimeErrors);
+  await testV4Workspace(cdp);
   await runCoreCrudWorkflow(cdp);
   await testLocalAnalysis(cdp, apiRequests, requestUrls);
 
