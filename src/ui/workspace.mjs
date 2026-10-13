@@ -1,3 +1,5 @@
+import { personaFollowUpOpen, personaFollowUpDue } from "../domain/today.mjs";
+
 // Open follow-ups include future scheduled work, but postpone snoozed ones
 // only until the new due date; completing/cancelling closes them permanently.
 export function personaV4IsFollowUpOpen(item, today) {
