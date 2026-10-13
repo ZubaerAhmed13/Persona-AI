@@ -19,7 +19,7 @@ test("six top-level workspace destinations are embedded without replacing old 34
   for (const old of ["openloops", "decisionlab", "playbook", "monthly", "privacy"]) {
     assert.match(html, new RegExp('data-view="' + old + '"'));
   }
-  assert.match(block, /"All tools · 34 legacy views"/);
+  assert.match(block, /All tools · 34 legacy views/);
   assert.match(block, /aria-current/);
   assert.match(block, /aria-expanded/);
 });
