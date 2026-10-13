@@ -76,7 +76,11 @@ const workspaceCssBlock = "\n/* PERSONA_V4_WORKSPACE_CSS_START */\n" +
   workspaceCss.trimEnd() + "\n/* PERSONA_V4_WORKSPACE_CSS_END */\n";
 const workspaceCssRe = /\n\/\* PERSONA_V4_WORKSPACE_CSS_START \*\/[\s\S]*?\/\* PERSONA_V4_WORKSPACE_CSS_END \*\/\n/;
 if (workspaceCssRe.test(html)) html = html.replace(workspaceCssRe, workspaceCssBlock);
-else replaceOnce("</style>", workspaceCssBlock + "</style>", "inject Persona v4 workspace CSS");
+else {
+  const close = html.indexOf("</style>");
+  if (close < 0) throw new Error("Persona v4 workspace head style block missing");
+  html = html.slice(0, close) + workspaceCssBlock + html.slice(close);
+}
 const workspaceFns = [personaV4InitWorkspace, personaV4SyncWorkspace, renderPersonaV4FollowUps]
   .map((fn) => fn.toString()).join("\n\n");
 const workspaceBlock = "  /* PERSONA_V4_WORKSPACE_RUNTIME_START */\n" +
