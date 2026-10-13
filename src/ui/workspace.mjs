@@ -47,6 +47,36 @@ export function personaV4InitWorkspace() {
     coreNav.appendChild(button);
   }
   nav.before(coreNav);
+  // On small screens the same six destinations replace the legacy mobile
+  // shortcut strip. The floating capture button remains available.
+  const legacyMobile = document.getElementById("mobileNav");
+  if (legacyMobile && !document.getElementById("v4MobileNav")) {
+    const mobile = document.createElement("nav");
+    mobile.id = "v4MobileNav";
+    mobile.className = "v4-mobile-nav";
+    mobile.setAttribute("aria-label", "Mobile workspace");
+    for (const [view, label, ico] of core) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "v4-mobile-link";
+      button.dataset.v4Mobile = view;
+      button.setAttribute("aria-label", label);
+      const graphic = document.createElement("span");
+      graphic.className = "v4-mobile-icon";
+      graphic.setAttribute("aria-hidden", "true");
+      graphic.innerHTML = icon(ico, 19);
+      const word = document.createElement("span");
+      word.textContent = label;
+      button.append(graphic, word);
+      button.addEventListener("click", () => {
+        getState().focusPersonId = null;
+        navigate2(view);
+        document.getElementById("sidebar")?.classList.remove("open");
+      });
+      mobile.appendChild(button);
+    }
+    legacyMobile.after(mobile);
+  }
   const tools = document.createElement("div");
   tools.className = "v4-sidebar-tools";
   const advanced = document.createElement("button");
@@ -82,6 +112,12 @@ export function personaV4SyncWorkspace(view) {
   const active = labels[view] || null;
   document.querySelectorAll("#v4PrimaryNav [data-v4-view]").forEach((button) => {
     const selected = button.dataset.v4View === view;
+    button.classList.toggle("active", selected);
+    if (selected) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  document.querySelectorAll("#v4MobileNav [data-v4-mobile]").forEach((button) => {
+    const selected = button.dataset.v4Mobile === view;
     button.classList.toggle("active", selected);
     if (selected) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
