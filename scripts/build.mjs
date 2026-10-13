@@ -102,7 +102,11 @@ const personActivityCssBlock = "\n/* PERSONA_V4_PERSON_ACTIVITY_CSS_START */\n" 
   personActivityCss.trimEnd() + "\n/* PERSONA_V4_PERSON_ACTIVITY_CSS_END */\n";
 const personActivityCssRe = /\n\/\* PERSONA_V4_PERSON_ACTIVITY_CSS_START \*\/[\s\S]*?\/\* PERSONA_V4_PERSON_ACTIVITY_CSS_END \*\/\n/;
 if (personActivityCssRe.test(html)) html = html.replace(personActivityCssRe, personActivityCssBlock);
-else replaceOnce("</style>", personActivityCssBlock + "</style>", "inject Persona v4 People/Activity styles");
+else {
+  const close = html.indexOf("</style>");
+  if (close < 0) throw new Error("Persona v4 People/Activity style insertion point missing");
+  html = html.slice(0, close) + personActivityCssBlock + html.slice(close);
+}
 
 const personActivityFns = [
   personaV4ActivityList, personaV4PersonSummary, personaV4FilterActivity,
