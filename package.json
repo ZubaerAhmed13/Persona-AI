@@ -11,7 +11,8 @@
     "test:acceptance": "node scripts/full-browser-acceptance.mjs",
     "test:features": "node scripts/feature-workflow-acceptance.mjs",
     "verify": "node scripts/verify.mjs",
-    "check": "npm run build && npm test && npm run verify && npm run test:browser && npm run test:acceptance && npm run test:features"
+    "check": "npm run build && npm test && npm run verify && npm run test:browser && npm run test:acceptance && npm run test:features && npm run release:gate",
+    "release:gate": "node scripts/release-gate.mjs"
   },
   "engines": {
     "node": ">=20"
