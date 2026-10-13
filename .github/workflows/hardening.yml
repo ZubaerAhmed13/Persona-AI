@@ -50,6 +50,9 @@ jobs:
       - name: Verify production artifact
         run: npm run verify
 
+      - name: Stage 10 reproducible release and asset budget gate
+        run: npm run release:gate
+
       - name: Browser acceptance — direct file and HTTP hosted
         shell: bash
         run: |
