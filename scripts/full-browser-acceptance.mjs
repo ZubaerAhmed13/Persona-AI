@@ -525,6 +525,53 @@ async function testV4Stage8EvidenceNetwork(cdp) {
   assert.deepEqual(canonical(await snapshot(cdp)),before,"Exploring Stage 8 network or decision context changed records");
 }
 
+async function testV4Stage9MobileAccessibility(cdp) {
+  const before=canonical(await snapshot(cdp));
+  try {
+    for (const width of [320,390,720]) {
+      await cdp.send("Emulation.setDeviceMetricsOverride",{width,height:740,deviceScaleFactor:1,mobile:true});
+      for (const view of ["dashboard","people","interactions","followups","copilot"]) {
+        await openView(cdp,view);
+        const result=await cdp.evaluate('(() => {const nav=document.querySelector("#v4MobileNav"),active=nav?.querySelector(\'[aria-current="page"]\');return {width:window.innerWidth,scrollWidth:document.documentElement.scrollWidth,navVisible:!!nav&&getComputedStyle(nav).display!=="none",navCount:nav?.querySelectorAll("button").length,navScrollable:nav?.scrollWidth>nav?.clientWidth,activeHeight:active?.getBoundingClientRect().height,titleRole:document.querySelector("#view .page-title")?.getAttribute("role"),titleLevel:document.querySelector("#view .page-title")?.getAttribute("aria-level"),skip:!!document.querySelector("#v4s9SkipLink"),inputSize:parseFloat(getComputedStyle(document.querySelector("#globalSearchInput")).fontSize)};})()');
+        assert.equal(result.navVisible,true,"Mobile navigation hidden on "+view+" at "+width+"px");
+        assert.equal(result.navCount,6,"Mobile nav lost a destination at "+width+"px");
+        assert.equal(result.navScrollable,true,"Six destinations should remain scrollable at "+width+"px");
+        assert.ok(result.activeHeight>=44,"Active mobile target below 44px at "+width+"px ("+result.activeHeight+"px)");
+        assert.ok(result.scrollWidth<=result.width+2,"Page overflow at "+width+"px in "+view+": "+result.scrollWidth+"px");
+        assert.equal(result.titleRole,"heading");
+        assert.equal(result.titleLevel,"1");
+        assert.equal(result.skip,true);
+        assert.ok(result.inputSize>=16,"Mobile search input could trigger automatic zoom at "+width+"px");
+      }
+    }
+    await openView(cdp,"people");
+    const opened=await cdp.evaluate('(() => {const button=document.querySelector(\'#quickAdd [data-action="addPerson"]\');if(!button)return false;button.focus();button.click();return true;})()');
+    assert.equal(opened,true,"Add Person modal trigger unavailable");
+    await waitUntil(cdp,'!!document.querySelector("#modalRoot .modal-backdrop")',"mobile modal");
+    await sleep(130);
+    const info=await cdp.evaluate('(() => {const root=document.querySelector("#modalRoot .modal-backdrop");const focusables=[...root.querySelectorAll(\'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])\')].filter(e=>e.getClientRects().length&&!e.hidden);return {labelled:root.getAttribute("aria-labelledby"),name:root.querySelector("#v4s9ModalTitle")?.textContent,buttons:focusables.length,focusInside:root.contains(document.activeElement)};})()');
+    assert.equal(info.labelled,"v4s9ModalTitle");
+    assert.ok(info.name?.length>0);
+    assert.ok(info.buttons>=2);
+    assert.equal(info.focusInside,true,"Modal does not focus a dialog control");
+
+    const trapped=await cdp.evaluate('(() => {const root=document.querySelector("#modalRoot .modal-backdrop"),f=[...root.querySelectorAll(\'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])\')].filter(e=>e.getClientRects().length&&!e.hidden);f[f.length-1].focus();document.dispatchEvent(new KeyboardEvent("keydown",{key:"Tab",bubbles:true,cancelable:true}));const forward=document.activeElement===f[0];f[0].focus();document.dispatchEvent(new KeyboardEvent("keydown",{key:"Tab",shiftKey:true,bubbles:true,cancelable:true}));return forward&&document.activeElement===f[f.length-1];})()');
+    assert.equal(trapped,true,"Tab/Shift+Tab escaped the modal");
+    await cdp.evaluate('document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true,cancelable:true}))');
+    assert.equal(await cdp.evaluate('!!document.querySelector("#modalRoot .modal-backdrop")'),false);
+    assert.equal(await cdp.evaluate('document.activeElement===document.querySelector(\'#quickAdd [data-action="addPerson"]\')'),true,"Closing dialog did not return focus");
+
+    await cdp.send("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
+    const motion=await cdp.evaluate('getComputedStyle(document.querySelector("#view")).animationName');
+    assert.equal(motion,"none","Reduced motion should suppress decorative page animation");
+  } finally {
+    await cdp.send("Emulation.setEmulatedMedia",{features:[]});
+    await cdp.send("Emulation.clearDeviceMetricsOverride");
+    await openView(cdp,"dashboard");
+  }
+  assert.deepEqual(canonical(await snapshot(cdp)),before,"Stage 9 responsive/a11y interactions mutated user data");
+}
+
 async function runCoreCrudWorkflow(cdp) {
   await openView(cdp, "people");
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
@@ -875,6 +922,7 @@ try {
   await testV4Stage6Planning(cdp);
   await testV4Stage7GroundedCopilot(cdp);
   await testV4Stage8EvidenceNetwork(cdp);
+  await testV4Stage9MobileAccessibility(cdp);
   await testV4PeopleActivity(cdp);
   await runCoreCrudWorkflow(cdp);
   await testV4SmartCaptureAndContacts(cdp);
