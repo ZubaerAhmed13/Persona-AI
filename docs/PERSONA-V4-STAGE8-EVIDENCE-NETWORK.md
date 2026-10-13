@@ -45,3 +45,9 @@ The network displays one central **You** node and one edge to each visible perso
 ## Release gate
 
 Run `npm run check` including Node unit and safety tests, browser smoke, full product/backup/AI acceptance, and major feature-workflow acceptance. The production `index.html` must be generated deterministically and committed before the PR merges. Complete independent PR verification, main-branch certification and public GitHub Pages exact-artifact verification before calling it deployed.
+
+## Verified development acceptance and reviewer checklist
+
+The final Stage 8 development branch passed all automated build, security and regression tests, hosted/direct-file Chrome, full backup/AI acceptance, and feature-workflow acceptance in [GitHub Actions run 38447133638](https://github.com/ZubaerAhmed13/Persona-AI/actions/runs/38447133638). The build generated and committed the production HTML with the current source optimizations. The PR must independently verify that committed artifact before merging.
+
+Before approving: confirm the network does not draw links between two other people, a selected contact's source excerpts stay on that contact, and selecting a source opens the original record without modifying it. Inspect the original static network under its disclosure, verify keyboard access to the list and SVG nodes, and confirm Decision Lab evidence preview leaves both the input and database unchanged.
