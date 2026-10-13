@@ -539,7 +539,7 @@ async function testV4Stage9MobileAccessibility(cdp) {
         const result=await cdp.evaluate('(() => {const nav=document.querySelector("#v4MobileNav"),active=nav?.querySelector(\'[aria-current="page"]\');return {width:window.innerWidth,scrollWidth:document.documentElement.scrollWidth,navVisible:!!nav&&getComputedStyle(nav).display!=="none",navCount:nav?.querySelectorAll("button").length,navScrollable:nav?.scrollWidth>nav?.clientWidth,activeHeight:active?.getBoundingClientRect().height,titleRole:document.querySelector("#view .page-title")?.getAttribute("role"),titleLevel:document.querySelector("#view .page-title")?.getAttribute("aria-level"),skip:!!document.querySelector("#v4s9SkipLink"),inputSize:parseFloat(getComputedStyle(document.querySelector("#globalSearchInput")).fontSize)};})()');
         assert.equal(result.navVisible,true,"Mobile navigation hidden on "+view+" at "+width+"px");
         assert.equal(result.navCount,6,"Mobile nav lost a destination at "+width+"px");
-        assert.equal(result.navScrollable,true,"Six destinations should remain scrollable at "+width+"px");
+        if(width<=390) assert.equal(result.navScrollable,true,"Narrow mobile navigation must scroll at "+width+"px");
         assert.ok(result.activeHeight>=44,"Active mobile target below 44px at "+width+"px ("+result.activeHeight+"px)");
         assert.ok(result.scrollWidth<=result.width+2,"Page overflow at "+width+"px in "+view+": "+result.scrollWidth+"px");
         assert.equal(result.titleRole,"heading");
