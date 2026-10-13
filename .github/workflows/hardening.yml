@@ -39,6 +39,7 @@ jobs:
           if ! git diff --quiet -- index.html; then
             echo "::error::index.html does not match the production artifact generated from this exact commit. Run npm run build and commit index.html before merging or pushing to main."
             git diff --stat -- index.html
+            git diff -- index.html | head -100 || true
             exit 1
           fi
           echo "Committed index.html exactly matches the artifact generated from certified SHA $(git rev-parse HEAD)."
