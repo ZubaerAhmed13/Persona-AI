@@ -382,6 +382,49 @@ async function testV4PeopleActivity(cdp) {
   assert.equal(await cdp.evaluate('!!document.querySelector(".v4-person-snapshot")'),true);
 }
 
+async function testV4SmartCaptureAndContacts(cdp) {
+  await openView(cdp,"people");
+  const launcher = await cdp.evaluate('(() => { const b=document.querySelector(\'#view [data-action="importContactsCSV"]\');if(!b)return false;b.click();return true;})()');
+  assert.equal(launcher,true,"CSV contact import entry not visible on People page");
+  await waitUntil(cdp,'!!document.querySelector("#v4csvFile")',"local CSV picker");
+  const csv = "Full Name,Organization,Notes\nV3.1 Compatibility Person,Old,Existing duplicate\nStage5 Import Person,Example Co,Imported safely";
+  const attach = await cdp.evaluate('(() => { const input=document.querySelector("#v4csvFile");if(!input)return false;const dt=new DataTransfer();dt.items.add(new File(['+JSON.stringify(csv)+'],"contacts.csv",{type:"text/csv"}));input.files=dt.files;input.dispatchEvent(new Event("change",{bubbles:true}));return true;})()');
+  assert.equal(attach,true);
+  await waitUntil(cdp,'(document.querySelector("#v4csvPreview")?.textContent || "").includes("2 rows reviewed")',"CSV import preview");
+  const preview = await cdp.evaluate('(() => ({checks:[...document.querySelectorAll("[data-csv-include]")].map(e=>({checked:e.checked,disabled:e.disabled})),text:document.querySelector("#v4csvPreview")?.textContent||""}))()');
+  assert.equal(preview.checks.length,2);
+  assert.equal(preview.checks[0].disabled,true,"Existing person should not be re-imported automatically");
+  assert.equal(preview.checks[1].checked,true);
+  await cdp.evaluate('(() => { const b=[...document.querySelectorAll("#modalRoot button")].find(x=>x.textContent.includes("Import selected"));b.click();})()');
+  await waitUntil(cdp,'(document.querySelector("#view")?.textContent||"").includes("Stage5 Import Person") && !document.querySelector("#v4csvFile")',"CSV contact import commit",15000);
+  const stored=await snapshot(cdp);
+  const imported=stored.people.filter(p=>p.name==="Stage5 Import Person");
+  assert.equal(imported.length,1,"Contact import did not commit exactly one new person");
+  assert.equal(stored.people.filter(p=>p.name==="V3.1 Compatibility Person").length,1,"CSV duplicate created an extra existing person");
+
+  const searchReady=await cdp.evaluate('(() => { const s=document.querySelector("#globalSearchInput");s.value="hiking";s.dispatchEvent(new Event("input",{bubbles:true}));return true;})()');
+  assert.equal(searchReady,true);
+  await waitUntil(cdp,'(document.querySelector("#searchResults")?.textContent||"").toLowerCase().includes("hiking")',"ranked search for stored memory");
+  const searchResultCount=await cdp.evaluate('document.querySelectorAll("#searchResults [data-sr]").length');
+  assert.ok(searchResultCount>0 && searchResultCount<16,"Search should find relevant results without unrelated records");
+  await cdp.evaluate('(() => { const s=document.querySelector("#globalSearchInput");s.value="";s.dispatchEvent(new Event("input",{bubbles:true}));})()');
+
+  const smartButton=await cdp.evaluate('(() => { const b=document.querySelector(\'[data-action="universalCapture"]\');if(!b)return false;b.click();return true;})()');
+  assert.equal(smartButton,true,"Smart Capture action missing");
+  await waitUntil(cdp,'!!document.querySelector("#v4captureText")',"Smart Capture dialog");
+  const note="I spoke with Stage5 Import Person yesterday about the project.";
+  await cdp.evaluate('(() => { const el=document.querySelector("#v4captureText");el.value='+JSON.stringify(note)+';el.dispatchEvent(new Event("input",{bubbles:true}));document.querySelector("#v4captureReview").click();})()');
+  await waitUntil(cdp,'!!document.querySelector("#v4capturePerson")',"smart capture review fields");
+  const matched=await cdp.evaluate('document.querySelector("#v4capturePerson")?.selectedOptions[0]?.textContent');
+  assert.equal(matched,"Stage5 Import Person","Whole-token person detection failed");
+  await cdp.evaluate('(() => { const b=[...document.querySelectorAll("#modalRoot button")].find(e=>e.textContent.includes("Save reviewed interaction"));b.click();})()');
+  await waitUntil(cdp,'!document.querySelector("#v4captureText")',"reviewed capture commit");
+  const after=await snapshot(cdp);
+  const records=after.interactions.filter(r=>r.personId===imported[0].id && r.observed===note);
+  assert.equal(records.length,1,"Smart Capture did not persist the reviewed text for the confirmed contact");
+  assert.equal(records[0].source,"reviewed local smart capture","Smart Capture origin metadata missing");
+}
+
 async function runCoreCrudWorkflow(cdp) {
   await openView(cdp, "people");
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
@@ -707,6 +750,7 @@ try {
   await testV4Workspace(cdp);
   await testV4PeopleActivity(cdp);
   await runCoreCrudWorkflow(cdp);
+  await testV4SmartCaptureAndContacts(cdp);
   await testLocalAnalysis(cdp, apiRequests, requestUrls);
 
   const normalBefore = canonical(await snapshot(cdp));

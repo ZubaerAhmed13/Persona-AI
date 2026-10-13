@@ -815,6 +815,23 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 @media(max-width:720px){ .v4-activity-controls { grid-template-columns:1fr 1fr; } .v4-activity-search { grid-column:1/-1; } }
 @media(max-width:480px){ .v4-person-snapshot-head { flex-direction:column; } .v4-activity-controls { grid-template-columns:1fr; } .v4-activity-search { grid-column:auto; } }
 /* PERSONA_V4_PERSON_ACTIVITY_CSS_END */
+/* PERSONA_V4_SMART_CAPTURE_CSS_START */
+/* Persona AI v4 Stage 5 – no external assets. */
+.v4-csv-list { display:grid;gap:8px;max-height:290px;overflow:auto;margin-top:12px;padding:4px 0; }
+.v4-csv-row { display:flex;align-items:start;gap:10px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;cursor:pointer; }
+.v4-csv-row input { flex:0 0 auto;margin-top:5px; }
+.v4-csv-row span { display:grid;gap:4px;min-width:0;overflow-wrap:anywhere; }
+.v4-csv-row strong { font-size:.85rem;color:var(--text-strong); }
+.v4-csv-row small { font-size:.74rem;color:var(--text-soft); }
+.v4-csv-row .v4-csv-warning { color:var(--warn); }
+.v4-capture-review { margin:12px 0;padding:16px; }
+.v4-capture-review h3 { margin-bottom:8px; }
+.v4-capture-review .form-grid { margin:10px 0; }
+.v4-capture-dup { font-size:.79rem;color:var(--warn);margin:10px 0 0; }
+#v4captureText { min-height:110px; }
+#v4csvPreview { min-height:30px; }
+@media(max-width:720px) { .v4-capture-review .form-grid { display:grid;grid-template-columns:1fr; } }
+/* PERSONA_V4_SMART_CAPTURE_CSS_END */
 </style>
 </head>
 <body>
@@ -2093,6 +2110,359 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     });
   }
   /* PERSONA_V4_PERSON_ACTIVITY_END */
+
+  /* PERSONA_V4_SMART_CAPTURE_START */
+  function personaV4NormalizeContact(value) {
+    return String(value ?? "").normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  }
+  
+  function personaV4PersonMatches(name, people, omitId = null) {
+    const key = personaV4NormalizeContact(name);
+    if (!key) return [];
+    return (Array.isArray(people) ? people : []).filter((p) =>
+      p && p.id !== omitId && [p.name, p.alias].some((v) => personaV4NormalizeContact(v) === key));
+  }
+  
+  function personaV4MentionedPeople(text, people) {
+    const source = personaV4NormalizeContact(text);
+    if (!source) return [];
+    const padded = " " + source + " ";
+    const hits = [];
+    for (const p of Array.isArray(people) ? people : []) {
+      if (!p || typeof p.id !== "string") continue;
+      for (const raw of [p.name, p.alias]) {
+        const name = personaV4NormalizeContact(raw);
+        if (!name || name.length < 2) continue;
+        // Match whole human-readable tokens; do not mistake "Ann" for "Anna".
+        const start = padded.indexOf(name);
+        if (start < 0) continue;
+        const left = padded[start - 1] || "";
+        const right = padded[start + name.length] || "";
+        if (/[\p{L}\p{N}]/u.test(left) || /[\p{L}\p{N}]/u.test(right)) continue;
+        hits.push({ id: p.id, name: p.name, matchLength: name.length });
+        break;
+      }
+    }
+    return hits.sort((a, b) => b.matchLength - a.matchLength || String(a.name).localeCompare(String(b.name)));
+  }
+  
+  function personaV4InteractionDuplicates(peopleId, text, date, interactions) {
+    const personId = String(peopleId || "");
+    const norm = personaV4NormalizeContact(text).replace(/[.,!?]+$/g,"");
+    const day = String(date || "").slice(0, 10);
+    if (!personId || norm.length < 4 || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return [];
+    return (Array.isArray(interactions) ? interactions : []).filter((r) =>
+      r && r.personId === personId && String(r.date || "").slice(0,10) === day &&
+      personaV4NormalizeContact(r.observed || r.whatHappened).replace(/[.,!?]+$/g,"") === norm);
+  }
+  
+  function personaV4ParseContactCSV(text) {
+    const source = String(text || "");
+    if (source.length > 1048576) throw new Error("CSV file is larger than 1 MB.");
+    const rows = [];
+    let row = [], cell = "", quoted = false, closedQuote = false;
+    const addCell = () => {
+      if (cell.length > 2000) throw new Error("A CSV field exceeds 2,000 characters.");
+      row.push(cell);
+      cell = "";
+      closedQuote = false;
+    };
+    const addRow = () => {
+      addCell();
+      if (row.some((v) => v.trim())) rows.push(row);
+      row = [];
+      if (rows.length > 501) throw new Error("Import at most 500 contacts at a time.");
+    };
+    for (let i = 0; i < source.length; i++) {
+      const c = source[i];
+      if (quoted) {
+        if (c === '"' && source[i+1] === '"') { cell += '"'; i++; }
+        else if (c === '"') { quoted = false; closedQuote = true; }
+        else cell += c;
+      } else if (c === '"') {
+        if (cell || closedQuote) throw new Error("Invalid CSV quotation.");
+        quoted = true;
+      } else if (c === ",") addCell();
+      else if (c === "\r" || c === "\n") {
+        if (c === "\r" && source[i+1] === "\n") i++;
+        addRow();
+      } else {
+        if (closedQuote && c !== " " && c !== "\t") throw new Error("Unexpected characters after closing CSV quote.");
+        cell += c;
+      }
+    }
+    if (quoted) throw new Error("Unclosed quoted CSV field.");
+    if (cell || row.length) addRow();
+    if (!rows.length) throw new Error("CSV is empty.");
+    const headers = rows.shift().map((x) => personaV4NormalizeContact(x.replace(/^\uFEFF/,"")).replace(/[\s_-]+/g,""));
+    const find = (...names) => headers.findIndex((v) => names.includes(v));
+    const nameIndex = find("name","fullname","contactname");
+    if (nameIndex < 0) throw new Error("CSV must contain a Name or Full Name column.");
+    const idx = {
+      name: nameIndex, alias: find("alias","nickname"), organization: find("organization","company"),
+      relationshipType: find("relationship","relationshiptype"), notes: find("notes","note"),
+      communicationPreferences: find("communicationpreferences"), importantDates: find("importantdates")
+    };
+    return rows.map((r, rowIndex) => {
+      const field = (key) => idx[key] < 0 ? "" : String(r[idx[key]] || "").trim();
+      const person = Object.fromEntries(Object.keys(idx).map((k) => [k, field(k)]));
+      const issues = [];
+      if (!person.name) issues.push("Name is missing");
+      if (person.name.length > 120) issues.push("Name exceeds 120 characters");
+      if (r.length > headers.length && r.slice(headers.length).some(x => x.trim())) issues.push("Too many CSV columns");
+      return { rowNumber: rowIndex + 2, person, issues };
+    });
+  }
+  
+  function personaV4ContactCSVPreview(rows, existingPeople) {
+    const seen = new Map();
+    return (Array.isArray(rows) ? rows : []).map((r) => {
+      const key = personaV4NormalizeContact(r.person.name);
+      const duplicateExisting = personaV4PersonMatches(r.person.name, existingPeople).map((p) => p.name);
+      const prior = key && seen.has(key) ? seen.get(key) : null;
+      if (key && !seen.has(key)) seen.set(key, r.rowNumber);
+      return { ...r, duplicateExisting, duplicateRow: prior, canImport: !r.issues.length && !duplicateExisting.length && !prior };
+    });
+  }
+  
+  function personaV4SearchRecords(query, data, filters = {}) {
+    const q = personaV4NormalizeContact(query);
+    const all = data && typeof data === "object" ? data : {};
+    if (!q && !filters.personId && !filters.days) return [];
+    const people = Array.isArray(all.people) ? all.people : [];
+    const names = new Map(people.map(p => [p.id, String(p.name || "")]));
+    const columns = {
+      people: ["name","alias","organization","relationshipType","context","notes","communicationPreferences"],
+      interactions: ["observed","whatHappened","interpretation","type","location"],
+      observations: ["content","interpretation","context"],
+      memories: ["info","text","category"],
+      commitments: ["commitment","description"], decisions: ["question","situation"],
+      followUps: ["text","title","description"], predictions: ["predictionText","target"]
+    };
+    const labels = {people:"Person",interactions:"Interaction",observations:"Observation",memories:"Memory",
+      commitments:"Commitment",decisions:"Decision",followUps:"Follow-up",predictions:"Prediction"};
+    const results = [];
+    for (const [store, fields] of Object.entries(columns)) {
+      for (const r of Array.isArray(all[store]) ? all[store] : []) {
+        if (!r || typeof r.id !== "string") continue;
+        if (filters.personId && store !== "people" && r.personId !== filters.personId) continue;
+        if (filters.personId && store === "people" && r.id !== filters.personId) continue;
+        const name = store === "people" ? String(r.name || "") : names.get(r.personId) || "";
+        const haystack = fields.map(k => typeof r[k] === "string" ? r[k] : "").concat(name).join(" ");
+        const norm = personaV4NormalizeContact(haystack);
+        if (q && !norm.includes(q) && !q.split(" ").filter(Boolean).every(word => norm.includes(word))) continue;
+        const date = String(r.date || r.createdAt || "").slice(0,10);
+        if (filters.days && store !== "people") {
+          const cutoff = filters.cutoff || "";
+          if (!date || (cutoff && date < cutoff)) continue;
+        }
+        const priority = store === "people" && personaV4NormalizeContact(name) === q ? 8 :
+          store === "people" && personaV4NormalizeContact(name).startsWith(q) ? 7 :
+          personaV4NormalizeContact(name) === q ? 4 :
+          personaV4NormalizeContact(name).startsWith(q) ? 3 :
+          norm.startsWith(q) ? 2 : 1;
+        const title = store === "people" ? name : String(fields.map(k => r[k]).find(v => typeof v === "string" && v.trim()) || labels[store]).slice(0,90);
+        results.push({store,id:r.id,kind:labels[store],title,sub:store === "people" ? String(r.relationshipType || "") : name,priority,date});
+      }
+    }
+    return results.sort((a,b) => b.priority-a.priority || b.date.localeCompare(a.date) || a.title.localeCompare(b.title)).slice(0,16);
+  }
+  
+  function personaV4ImportContactsAtomic(db, incoming, makeId, schemaVersion, timestamp) {
+    return new Promise((resolve, reject) => {
+      if (!Array.isArray(incoming) || !incoming.length || incoming.length > 500) {
+        reject(new Error("Select between 1 and 500 valid contacts.")); return;
+      }
+      const trans = db.transaction(["people","auditLog"],"readwrite");
+      const store = trans.objectStore("people");
+      const log = trans.objectStore("auditLog");
+      let records = [], error = null;
+      trans.oncomplete = () => resolve(records);
+      trans.onabort = () => reject(error || trans.error || new Error("Contact import was rolled back."));
+      trans.onerror = () => { if (!error) error = trans.error || new Error("Contact import failed."); };
+      const req = store.getAll();
+      req.onsuccess = () => {
+        try {
+          const existing = req.result || [];
+          const seen = new Set(existing.flatMap(p => [p.name,p.alias].map(personaV4NormalizeContact).filter(Boolean)));
+          const ids = new Set(existing.map(p => p.id));
+          for (const row of incoming) {
+            const person = row.person || row;
+            const name = String(person.name || "").trim();
+            const key = personaV4NormalizeContact(name);
+            if (!key || name.length > 120 || seen.has(key)) throw new Error("Contact already exists or is invalid: " + name.slice(0,100));
+            seen.add(key);
+            let id = makeId("people");
+            if (ids.has(id)) throw new Error("Generated ID collision; import rolled back.");
+            ids.add(id);
+            const record = {
+              id, schemaVersion, createdAt:timestamp, updatedAt:timestamp,
+              name, alias:String(person.alias || "").slice(0,120), organization:String(person.organization || "").slice(0,200),
+              relationshipType:String(person.relationshipType || "").slice(0,120),
+              notes:String(person.notes || "").slice(0,2000),
+              communicationPreferences:String(person.communicationPreferences || "").slice(0,300),
+              importantDates:String(person.importantDates || "").slice(0,300),
+              tags:[], interests:[]
+            };
+            records.push(record);
+            store.add(record);
+            log.add({id:makeId("audit"),schemaVersion,createdAt:timestamp,updatedAt:timestamp,
+              store:"people",action:"import",recordId:id,personId:null,at:timestamp});
+          }
+        } catch (e) {
+          error = e;
+          trans.abort();
+        }
+      };
+    });
+  }
+  
+  function personaV4OpenContactsCSV() {
+    const content = `<p class="muted">Import only contacts you have permission to record. The CSV is read on this device only. Existing people are never overwritten or automatically merged.</p>
+      <div class="field"><label for="v4csvFile">Contacts CSV file (max 1 MB, 500 contacts)</label><input class="input" type="file" id="v4csvFile" accept=".csv,text/csv,text/plain"></div>
+      <p class="hint">Required column: Name or Full Name. Optional: Alias, Organization, Relationship, Notes, Communication Preferences, Important Dates. Duplicate names or aliases are skipped.</p>
+      <div id="v4csvPreview" role="status" aria-live="polite">Choose a CSV file to preview its contacts.</div>`;
+    const cancel = document.createElement("button");
+    cancel.className = "btn"; cancel.textContent = "Cancel";
+    const apply = document.createElement("button");
+    apply.className = "btn btn-primary"; apply.textContent = "Import selected"; apply.disabled = true;
+    const footer = document.createElement("div");
+    footer.append(cancel,apply);
+    const modal = openModal({title:"Import contacts from CSV", subtitle:"Review before saving · local only",body:content,footer,size:"modal-lg"});
+    cancel.onclick = closeModal;
+    const fileEl = modal.bodyEl.querySelector("#v4csvFile");
+    const preview = modal.bodyEl.querySelector("#v4csvPreview");
+    let prepared = [];
+    const checked = () => [...modal.bodyEl.querySelectorAll("[data-csv-include]:checked")]
+      .map(el => prepared[Number(el.value)]).filter(Boolean);
+    fileEl.addEventListener("change",async () => {
+      apply.disabled = true; prepared = [];
+      const file = fileEl.files?.[0];
+      if (!file) return;
+      if (file.size > 1048576) { preview.textContent = "File is larger than 1 MB."; return; }
+      preview.textContent = "Reading local CSV…";
+      try {
+        const parsed = personaV4ParseContactCSV(await file.text());
+        prepared = personaV4ContactCSVPreview(parsed,getState().data.people);
+        const usable = prepared.filter(r=>r.canImport).length;
+        preview.innerHTML = `<p class="muted">${prepared.length} rows reviewed · ${usable} new contacts ready · ${prepared.length-usable} skipped. Review the selection before saving.</p>
+         <div class="v4-csv-list">${prepared.map((r,i) => `<label class="v4-csv-row">
+         <input type="checkbox" data-csv-include value="${esc2(i)}" ${r.canImport?"checked":"disabled"} aria-label="Import row ${r.rowNumber}">
+         <span><strong>${personaV4EscapeActivity(r.person.name || "(unnamed)")}</strong>
+         <small>Row ${r.rowNumber}${r.person.organization?" · "+personaV4EscapeActivity(r.person.organization):""}</small>
+         ${!r.canImport?`<small class="v4-csv-warning">${personaV4EscapeActivity([...r.issues,...r.duplicateExisting.map(x=>"Existing match: "+x),...(r.duplicateRow?["Repeated in CSV row "+r.duplicateRow]:[])].join("; "))}</small>`:""}
+         </span></label>`).join("")}</div>`;
+        apply.disabled = usable===0;
+        preview.querySelectorAll("[data-csv-include]").forEach(el=>el.addEventListener("change",()=>apply.disabled=checked().length===0));
+      } catch(e) {preview.textContent = "CSV rejected: "+e.message; prepared=[];}
+    });
+    apply.onclick = async () => {
+      const selected = checked();
+      if (!selected.length) return;
+      apply.disabled = true;
+      try {
+        // Backup happens before any writes; import is one IndexedDB transaction.
+        exportJSON();
+        const imported = await personaV4ImportContactsAtomic(await openDb(),selected,uid,SCHEMA_VERSION,new Date().toISOString());
+        await loadAll();
+        syncContextSelect();
+        closeModal();
+        toast(imported.length+" contacts imported; a JSON backup was requested first.","ok","Import complete");
+        navigate2("people");
+      } catch(error) {
+        apply.disabled = false;
+        toast("Import not applied: "+(error?.message || "transaction aborted"),"bad","No contacts imported");
+      }
+    };
+  }
+  
+  function personaV4MountImportControls(view) {
+    if (!["people","data"].includes(view) || (view==="people" && getState().focusPersonId)) return;
+    const head = document.querySelector("#view .page-head");
+    if (!head) return;
+    let actions = head.querySelector(".head-actions");
+    if (!actions) { actions = document.createElement("div"); actions.className = "head-actions";head.appendChild(actions);}
+    if (actions.querySelector('[data-action="importContactsCSV"]')) return;
+    const btn = document.createElement("button");btn.type="button";btn.className="btn";
+    btn.dataset.action="importContactsCSV";btn.textContent="Import contacts CSV";
+    actions.appendChild(btn);
+  }
+  
+  function personaV4OpenUniversalCapture() {
+    const people = peopleList();
+    const body = `<p class="muted">Describe one interaction in your own words. Persona suggests a person and tags locally, then you review every field. Nothing is saved before you confirm.</p>
+      <div class="field"><label for="v4captureText">What happened?</label><textarea id="v4captureText" class="textarea" maxlength="10000" placeholder="I spoke with Alex yesterday about the project…"></textarea></div>
+      <button id="v4captureReview" type="button" class="btn btn-primary">Review suggested record</button>
+      <div id="v4captureProposal" aria-live="polite" style="margin-top:12px"></div>`;
+    const cancel = document.createElement("button"); cancel.className="btn";cancel.textContent="Cancel";
+    const save = document.createElement("button"); save.className="btn btn-primary";save.textContent="Save reviewed interaction";save.disabled=true;
+    const footer=document.createElement("div");footer.append(cancel,save);
+    const modal = openModal({title:"Smart capture",subtitle:"Local suggestions · explicit review",size:"modal-lg",body,footer});
+    cancel.onclick=closeModal;
+    const input = modal.bodyEl.querySelector("#v4captureText");
+    const review = modal.bodyEl.querySelector("#v4captureReview");
+    const panel = modal.bodyEl.querySelector("#v4captureProposal");
+    let reviewed = "";
+    let duplicateApproval = "";
+    input.addEventListener("input", () => {reviewed="";save.disabled=true;save.textContent="Save reviewed interaction";panel.textContent="The note changed. Review the updated text before saving.";});
+    review.onclick = () => {
+      const text=input.value.trim();
+      if (!text) {toast("Describe what happened first.","warn");return;}
+      const suggestion=parseCapture(text);
+      const candidates=personaV4MentionedPeople(text,people);
+      const chosen = candidates.length===1 ? candidates[0].id : "";
+      const d=new Date();d.setDate(d.getDate()-(Number.isInteger(suggestion.dateOffset)?suggestion.dateOffset:0));
+      const day=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+      const labels=candidates.length>1?"Several people were mentioned. Select the right person.":candidates.length===0?"No person confidently matched. Select one below.":"One person matched by name. Please verify.";
+      panel.innerHTML=`<div class="card v4-capture-review">
+        <h3>Proposed interaction — review before saving</h3><p class="muted">${esc2(labels)} Suggested tags and event types are not facts.</p>
+        <div class="form-grid">
+          <div class="field"><label for="v4capturePerson">Person *</label><select id="v4capturePerson" class="select" required><option value="">Choose person…</option>${people.map(p=>`<option value="${esc2(p.id)}" ${p.id===chosen?"selected":""}>${esc2(p.name)}</option>`).join("")}</select></div>
+          <div class="field"><label for="v4captureDate">Interaction date *</label><input type="date" id="v4captureDate" class="input" value="${esc2(day)}" required></div>
+        </div>
+        <div class="form-grid"><div class="field"><label for="v4captureType">Event type</label><input class="input" id="v4captureType" value="${esc2(suggestion.type)}" maxlength="120"></div>
+          <div class="field"><label for="v4captureInitiator">Who initiated?</label><select class="select" id="v4captureInitiator">${["Unclear","Me","Them","Mutual"].map(v=>`<option ${suggestion.initiator===v?"selected":""}>${v}</option>`).join("")}</select></div></div>
+        <div class="field"><label for="v4captureObserved">What I actually observed *</label><textarea id="v4captureObserved" class="textarea" maxlength="10000" required>${esc2(text)}</textarea></div>
+        <div class="field"><label for="v4captureInterpretation">My interpretation (optional, not evidence)</label><textarea id="v4captureInterpretation" class="textarea" maxlength="3000" placeholder="Leave empty if you are unsure"></textarea></div>
+        <p class="muted">Suggested behaviors: ${suggestion.behaviors.map(esc2).join(", ") || "none"} · Context: ${suggestion.context.map(esc2).join(", ") || "unspecified"}</p>
+        <p id="v4captureDuplicateNotice" role="status" class="v4-capture-dup"></p></div>`;
+      reviewed=text;duplicateApproval="";save.disabled=!people.length;save.textContent="Save reviewed interaction";
+    };
+    save.onclick=async()=>{
+      if (!reviewed || input.value.trim()!==reviewed) {
+        toast("Review the current text before saving.","warn");save.disabled=true;return;
+      }
+      const personId=panel.querySelector("#v4capturePerson")?.value||"";
+      const day=panel.querySelector("#v4captureDate")?.value||"";
+      const observed=panel.querySelector("#v4captureObserved")?.value.trim()||"";
+      const type=panel.querySelector("#v4captureType")?.value.trim()||"Interaction";
+      const interpretation=panel.querySelector("#v4captureInterpretation")?.value.trim()||"";
+      if (!personId || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !observed) {
+        toast("Person, date and observed facts are required.","warn");return;
+      }
+      const signature=personId+"|"+day+"|"+personaV4NormalizeContact(observed);
+      const duplicates=personaV4InteractionDuplicates(personId,observed,day,getState().data.interactions);
+      if (duplicates.length && duplicateApproval!==signature) {
+        duplicateApproval=signature;
+        save.textContent="Save anyway (possible duplicate)";
+        panel.querySelector("#v4captureDuplicateNotice").textContent=
+          "Possible duplicate: an interaction with the same person, date and description already exists. Review it before choosing Save anyway.";
+        return;
+      }
+      save.disabled=true;
+      try {
+        const suggestion=parseCapture(reviewed);
+        await create("interactions",{
+          personId,date:day+"T12:00",initiator:panel.querySelector("#v4captureInitiator")?.value||"Unclear",
+          type,behaviorTags:suggestion.behaviors,context:suggestion.context,
+          observed,interpretation,interpretationConfidence:interpretation?"Low":"",
+          factOrInterpretation:"Fact",source:"reviewed local smart capture"
+        });
+        closeModal();toast("Reviewed interaction saved locally.","ok");renderCurrent();
+      } catch(e) {save.disabled=false;toast("Could not save the interaction: "+(e?.message||"unknown error"),"bad");}
+    };
+  }
+  /* PERSONA_V4_SMART_CAPTURE_END */
 
   // js/storage.js
   var storage_exports = {};
@@ -8279,6 +8649,7 @@ self.onmessage = function (e) {
     const html = fn();
     root().innerHTML = html;
     personaV4MountPeopleActivity(v);
+    personaV4MountImportControls(v);
     injectHelpButton(v);
     wire(html);
     bindView(v);
@@ -8717,8 +9088,11 @@ self.onmessage = function (e) {
       case "quickCapture":
         openQuickCapture(arg);
         break;
+      case "importContactsCSV":
+        personaV4OpenContactsCSV();
+        break;
       case "universalCapture":
-        openUniversalCapture();
+        personaV4OpenUniversalCapture();
         break;
       case "simulate":
         openSimulation(arg);
@@ -12525,6 +12899,15 @@ self.onmessage = function (e) {
       const interpretation = m.bodyEl.querySelector("#qc_int")?.value.trim() || "";
       const guard = guardrailCheck(interpretation);
       if (guard) toast(guard.message, "warn", "Anti-bias check");
+      const day = m.bodyEl.querySelector("#qc_date")?.value || new Date().toISOString().slice(0,10);
+      const signature = personId+"|"+day+"|"+personaV4NormalizeContact(what);
+      if (personaV4InteractionDuplicates(personId,what,day,getState().data.interactions).length && m.bodyEl.dataset.v4DuplicateConfirmed !== signature) {
+        m.bodyEl.dataset.v4DuplicateConfirmed = signature;
+        save.textContent = "Save anyway (possible duplicate)";
+        toast("A record with the same person, date and note exists. Review it before selecting Save anyway.", "warn", "Possible duplicate");
+        return;
+      }
+      save.disabled = true;
       const { create: create2 } = await Promise.resolve().then(() => (init_state(), state_exports));
       await create2("interactions", {
         personId,
@@ -13741,9 +14124,20 @@ self.onmessage = function (e) {
         await update2("people", p.id, data);
         toast("Person updated.", "ok");
       } else {
-        const existing = peopleList().find((x) => x.name.trim().toLowerCase() === name.toLowerCase());
-        if (existing) {
-          toast(`A person named "${existing.name}" already exists.`, "warn", "Possible duplicate");
+        const similar = personaV4PersonMatches(name, peopleList());
+        if (similar.length) {
+          confirmDialog({
+            title: "Possible duplicate person",
+            message: "A profile named " + similar[0].name + " already exists. Creating another may split their history. Continue only if this is really a separate person.",
+            confirmText: "Create separate profile",
+            onConfirm: async () => {
+              await create2("people", data);
+              toast("Separate person profile added.", "ok");
+              syncContextSelect();
+              navigate2("people");
+            }
+          });
+          return;
         }
         await create2("people", data);
         toast("Person added.", "ok");
@@ -14558,6 +14952,14 @@ self.onmessage = function (e) {
     });
   }
   function searchAll(q) {
+    const nl = parseNaturalSearch(q);
+    const scoped = Boolean(nl.days || (nl.personId && /\b(?:about|with|for|from)\b/i.test(q)));
+    const d = new Date();
+    if (nl.days) d.setDate(d.getDate() - nl.days);
+    const cutoff = [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+    return personaV4SearchRecords(scoped ? "" : q, getState().data, scoped ? {personId:nl.personId,days:nl.days,cutoff} : {});
+  }
+  function legacySearchAll(q) {
     const s = getState();
     const out = [];
     const ql = q.toLowerCase();

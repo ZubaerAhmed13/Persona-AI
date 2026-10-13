@@ -124,7 +124,7 @@ replaceOnce(
   "    root().innerHTML = html;\n    injectHelpButton(v);",
   "    root().innerHTML = html;\n    personaV4MountPeopleActivity(v);\n    injectHelpButton(v);",
   "render Stage 4 People/Activity overlays",
-  "    personaV4MountPeopleActivity(v);\n    injectHelpButton(v);"
+  "    personaV4MountPeopleActivity(v);"
 );
 replaceOnce(
   "    bindFilters();\n  }\n  function bindReportSections()",
