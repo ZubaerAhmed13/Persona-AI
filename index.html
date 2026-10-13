@@ -1369,6 +1369,19 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
         tx.oncomplete = () => { if (!settled) { settled = true; resolve(); } };
         tx.onabort = () => fail(tx.error || new Error("Person deletion was aborted. No records were deleted."));
         tx.objectStore("people").delete(personId);
+        // Older audit entries sometimes omit personId but point directly at
+        // people[personId] via (store, recordId). Remove those as well.
+        if (stores.includes("auditLog")) {
+          const audit = tx.objectStore("auditLog");
+          const scan = audit.openCursor();
+          scan.onsuccess = () => {
+            const cursor = scan.result;
+            if (!cursor) return;
+            const record = cursor.value;
+            if (record && record.store === "people" && record.recordId === personId) cursor.delete();
+            cursor.continue();
+          };
+        }
         for (const name of stores) {
           if (name === "people") continue;
           const store = tx.objectStore(name);
