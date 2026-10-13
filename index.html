@@ -1205,9 +1205,6 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     return { ok: errors.length === 0, errors };
   }
   
-  // One readwrite transaction covers ALL changed stores. Either every clear/put
-  // commits, or the browser rolls the complete transaction back on request error,
-  // explicit abort, tab termination, or shutdown. Never await within the tx.
   function personaAtomicRestore(dbConnection, data) {
     const names = Object.keys(data);
     return new Promise((resolve, reject) => {
@@ -1235,9 +1232,6 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     });
   }
   
-  // Database-level cascade (including the real primary people.id record).
-  // Reads the personId index inside a single transaction, preventing partial
-  // deletion, and removes linked audit records as well as ordinary activity.
   function personaAtomicDeletePerson(dbConnection, stores, personId, keyRangeFactory = IDBKeyRange) {
     return new Promise((resolve, reject) => {
       if (!personId) { reject(new Error("A person ID is required.")); return; }
