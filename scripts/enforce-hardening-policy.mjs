@@ -33,19 +33,44 @@ const newImportOrder = `${importDeps}
       SecretStore.clearApiKey();
       if (parsed && parsed.settings) setSettings(importedSettings.settings);`;
 
-if (html.includes(oldImportOrder)) {
-  html = html.replace(oldImportOrder, newImportOrder);
-} else if (!html.includes(newImportOrder)) {
-  const vanilla = `${importDeps}
-      const snapshot = buildBackupPayload(getState().settings, getState().data);
-      snapshot.reason = "pre-import-safety";
-      const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
-      download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");`;
-  const hardened = `${vanilla}
-      // Normal backup restore intentionally clears session credentials.
-      SecretStore.clearApiKey();
-      if (parsed && parsed.settings) setSettings(importedSettings.settings);`;
-  replaceExactlyOnce(vanilla, hardened, "normal import credential policy");
+if (html.includes("PERSONA_V4_SAFETY_RUNTIME_START")) {
+  // v4 hotfix unifies plaintext + encrypted restore behind one atomic
+  // transaction. Never reorder settings/credentials ahead of commit.
+  const sharedStart = html.indexOf("  async function applyVerifiedBackup(");
+  const sharedEnd = html.indexOf("  function importEncrypted()", sharedStart);
+  if (sharedStart < 0 || sharedEnd <= sharedStart) throw new Error("v4 shared safe restore missing");
+  const flow = html.slice(sharedStart, sharedEnd);
+  const required = [
+    'const snapshot = buildBackupPayload(getState().settings, getState().data);',
+    'download2("persona-safety-backup.json"',
+    'await db2.replaceStoresAtomically(data);',
+    'SecretStore.clearApiKey();',
+    'if (parsed && parsed.settings) setSettings(importedSettings.settings);'
+  ];
+  let previous = -1;
+  for (const marker of required) {
+    const at = flow.indexOf(marker);
+    if (at <= previous) throw new Error("v4 restore safeguard missing or incorrectly ordered: " + marker);
+    previous = at;
+  }
+  for (const signature of ["validatePersonaBackup(parsed, STORES", "personaAtomicDeletePerson(await openDb(), STORES, personId)"]) {
+    if (!html.includes(signature)) throw new Error("v4 safety signature missing: " + signature);
+  }
+} else {
+  if (html.includes(oldImportOrder)) {
+    html = html.replace(oldImportOrder, newImportOrder);
+  } else if (!html.includes(newImportOrder)) {
+    const vanilla = `${importDeps}
+        const snapshot = buildBackupPayload(getState().settings, getState().data);
+        snapshot.reason = "pre-import-safety";
+        const { download: download2 } = await Promise.resolve().then(() => (init_utils(), utils_exports));
+        download2("persona-safety-backup.json", JSON.stringify(snapshot, null, 2), "application/json");`;
+    const hardened = `${vanilla}
+        // Normal backup restore intentionally clears session credentials.
+        SecretStore.clearApiKey();
+        if (parsed && parsed.settings) setSettings(importedSettings.settings);`;
+    replaceExactlyOnce(vanilla, hardened, "normal import credential policy");
+  }
 }
 
 // A reset can call loadSettings(), which intentionally migrates a legacy persisted API key
