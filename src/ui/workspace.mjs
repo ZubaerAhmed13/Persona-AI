@@ -1,20 +1,12 @@
 // Open follow-ups include future scheduled work, but postpone snoozed ones
 // only until the new due date; completing/cancelling closes them permanently.
 export function personaV4IsFollowUpOpen(item, today) {
-  if (!item || item.completed === true || item.cancelled === true) return false;
-  const status = String(item.status || "").toLowerCase();
-  if (["done", "completed", "cancelled"].includes(status)) return false;
-  return status !== "snoozed" || personaV4IsFollowUpDue(item, today);
+  return personaFollowUpOpen(item, today);
 }
 
-// One due-state rule shared by Today, Follow-ups, and the navigation counter.
-// Snoozing postpones the due date; it must not hide a reminder forever.
+// Due-state behavior is now defined in the shared read-only domain module.
 export function personaV4IsFollowUpDue(item, today) {
-  if (!item || item.completed === true || item.cancelled === true) return false;
-  const status = String(item.status || "").toLowerCase();
-  if (["done", "completed", "cancelled"].includes(status)) return false;
-  const due = item.dueDate ? String(item.dueDate).slice(0, 10) : "";
-  return !due || due <= today;
+  return personaFollowUpDue(item, today);
 }
 
 // Persona AI 4.0: progressive enhancement of the original one-file app.
