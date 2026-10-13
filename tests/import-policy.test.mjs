@@ -5,41 +5,45 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-
 async function productionHtml() {
   return readFile(resolve(here, "../index.html"), "utf8");
 }
 
-test("normal JSON restore creates safety backup before applying imported settings and clears session credentials", async () => {
+test("plaintext and encrypted restore share validation, safety backup, and atomic commit", async () => {
   const html = await productionHtml();
-  const start = html.indexOf("  async function safeImport(parsed) {");
-  const end = html.indexOf("  function openAuditLog()", start);
-  assert.ok(start >= 0 && end > start, "safeImport function not found");
-  const source = html.slice(start, end);
-
-  const snapshotPos = source.indexOf("const snapshot = buildBackupPayload(getState().settings, getState().data);");
-  const downloadPos = source.indexOf('download2("persona-safety-backup.json"');
-  const clearPos = source.indexOf("SecretStore.clearApiKey();");
-  const settingsPos = source.indexOf("if (parsed && parsed.settings) setSettings(importedSettings.settings);");
-
-  assert.ok(snapshotPos >= 0 && downloadPos > snapshotPos, "pre-import safety backup is missing");
-  assert.ok(clearPos > downloadPos, "session secret must be cleared after the pre-import safety backup is captured");
-  assert.ok(settingsPos > clearPos, "imported settings must be applied only after session secret clearing");
-  assert.ok(source.includes("// Capture the current non-secret state before replacing settings or data."));
-  assert.ok(source.includes("const importedSettings = prepareImportedSettings(parsed && parsed.settings);"));
-  assert.equal(source.includes("setSettings({ aiApiKey"), false);
+  const normal = html.slice(html.indexOf("  async function safeImport(parsed) {"), html.indexOf("  function openAuditLog()"));
+  const encrypted = html.slice(html.indexOf("  function importEncrypted() {"), html.indexOf("  async function safeImport(parsed) {"));
+  const common = html.slice(html.indexOf("  async function applyVerifiedBackup("), html.indexOf("  function importEncrypted() {"));
+  for (const source of [normal, encrypted]) {
+    const validated = source.indexOf("validatePersonaBackup(parsed, STORES");
+    const restored = source.indexOf("applyVerifiedBackup(parsed, data, importedSettings)");
+    assert.ok(validated >= 0 && restored > validated,
+      "Both restore paths must reject invalid backups before atomic data mutation");
+    assert.ok(source.includes("prepareImportedSettings(parsed && parsed.settings)"));
+    assert.ok(source.includes("sanitizeSecretsDeep(parsed.data)"));
+  }
+  const positions = [
+    "const snapshot = buildBackupPayload(getState().settings, getState().data);",
+    'download2("persona-safety-backup.json"',
+    "await db2.replaceStoresAtomically(data);",
+    "SecretStore.clearApiKey();",
+    "if (parsed && parsed.settings) setSettings(importedSettings.settings);"
+  ].map((marker) => common.indexOf(marker));
+  assert.ok(positions.every((p) => p >= 0) && positions.every((p, i) => i === 0 || p > positions[i - 1]),
+    "Safety snapshot and download must precede atomic replace, which must precede secret/settings updates");
+  assert.equal(common.includes("await db2.clear("), false, "Non-atomic store-by-store import reintroduced");
 });
 
-test("encrypted JSON restore clears current session credentials and applies sanitized settings", async () => {
+test("person deletion uses a single DB transaction and explicitly deletes primary person id", async () => {
   const html = await productionHtml();
-  const decryptAnchor = html.indexOf("const parsed = await decryptBackupJSON(encData, pw);");
-  const safeImportStart = html.indexOf("  async function safeImport(parsed) {", decryptAnchor);
-  assert.ok(decryptAnchor >= 0 && safeImportStart > decryptAnchor, "encrypted restore block not found");
-  const source = html.slice(Math.max(0, decryptAnchor - 2500), safeImportStart);
-  assert.ok(source.includes("const importedSettings = prepareImportedSettings(parsed && parsed.settings);"));
-  assert.ok(source.includes("SecretStore.clearApiKey();"));
-  assert.ok(source.includes("if (parsed && parsed.settings) setSettings(importedSettings.settings);"));
-  assert.ok(source.includes("sanitizeSecretsDeep(parsed && parsed.data"));
+  const start = html.indexOf("  function deletePerson(id) {");
+  const end = html.indexOf("  function greeting() {", start);
+  const source = html.slice(start, end);
+  assert.ok(source.includes("await db2.deletePersonGraphAtomically(id);"));
+  assert.ok(source.includes("await loadAll2();"));
+  assert.ok(html.includes('tx.objectStore("people").delete(personId);'));
+  assert.ok(html.includes('store.index("personId").openKeyCursor('));
+  assert.equal(source.includes('filter((x) => x.personId === id)'), false, "Old orphaning person cascade reintroduced");
 });
 
 test("complete reset has a final secret-clear postcondition after legacy settings migration", async () => {
