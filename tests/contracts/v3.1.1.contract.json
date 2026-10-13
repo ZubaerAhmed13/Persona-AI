@@ -1,0 +1,381 @@
+{
+  "description": "Persona AI v3.1.1 read-only legacy compatibility contract; change only with migration evidence and review.",
+  "recordedFrom": "main",
+  "productionGitBlobSha": "11cb846e8b11a0d3a3ea4806e3c1c5c1136b7fb5",
+  "databaseName": "persona-ai",
+  "databaseVersion": 5,
+  "dataVersion": 2,
+  "schemaVersion": 7,
+  "appVersion": "3.1.1",
+  "analyticsEngineVersion": "3.1",
+  "aiEngineVersion": "2.1",
+  "exportFormatVersion": "3.1",
+  "settingsKey": "persona.settings.v1",
+  "sessionCredentialKey": "persona.secret.aiApiKey.session",
+  "objectStoreKeyPath": "id",
+  "objectStoreIndexes": [
+    "personId",
+    "date"
+  ],
+  "storeNames": [
+    "people",
+    "interactions",
+    "observations",
+    "favors",
+    "commitments",
+    "predictions",
+    "preferences",
+    "boundaryEvents",
+    "conflictEvents",
+    "supportEvents",
+    "statements",
+    "memories",
+    "decisions",
+    "weeklyReviews",
+    "selfReflections",
+    "followUps",
+    "reminders",
+    "surprises",
+    "changeOfMinds",
+    "monthlyReviews",
+    "auditLog",
+    "openLoops",
+    "expectations",
+    "debriefs",
+    "lessons",
+    "playbooks",
+    "playbookHistory",
+    "signals",
+    "signalHistory",
+    "situations",
+    "experiments",
+    "decisionOptions",
+    "relationshipGoals"
+  ],
+  "navigationRoutes": [
+    {
+      "id": "dashboard",
+      "label": "Today"
+    },
+    {
+      "id": "copilot",
+      "label": "Copilot"
+    },
+    {
+      "id": "openloops",
+      "label": "Open Loops"
+    },
+    {
+      "id": "decisions",
+      "label": "Decisions"
+    },
+    {
+      "id": "people",
+      "label": "People"
+    },
+    {
+      "id": "memory",
+      "label": "Memory"
+    },
+    {
+      "id": "commitments",
+      "label": "Commitments"
+    },
+    {
+      "id": "judgment",
+      "label": "My Judgment"
+    },
+    {
+      "id": "weekly",
+      "label": "Weekly Review"
+    },
+    {
+      "id": "monthly",
+      "label": "Monthly Review"
+    },
+    {
+      "id": "playbook",
+      "label": "Playbook"
+    },
+    {
+      "id": "situations",
+      "label": "Situations"
+    },
+    {
+      "id": "signals",
+      "label": "Signals"
+    },
+    {
+      "id": "decisionlab",
+      "label": "Decision Lab"
+    },
+    {
+      "id": "experiments",
+      "label": "Experiments"
+    },
+    {
+      "id": "interactions",
+      "label": "Interactions"
+    },
+    {
+      "id": "journal",
+      "label": "Journal"
+    },
+    {
+      "id": "patterns",
+      "label": "Patterns"
+    },
+    {
+      "id": "reciprocity",
+      "label": "Reciprocity"
+    },
+    {
+      "id": "reliability",
+      "label": "Reliability"
+    },
+    {
+      "id": "communication",
+      "label": "Communication"
+    },
+    {
+      "id": "initiative",
+      "label": "Initiative"
+    },
+    {
+      "id": "boundaries",
+      "label": "Boundaries"
+    },
+    {
+      "id": "conflict",
+      "label": "Conflict"
+    },
+    {
+      "id": "support",
+      "label": "Support"
+    },
+    {
+      "id": "context",
+      "label": "Context"
+    },
+    {
+      "id": "preferences",
+      "label": "Preferences"
+    },
+    {
+      "id": "predictions",
+      "label": "Predictions"
+    },
+    {
+      "id": "relationships",
+      "label": "Relationships"
+    },
+    {
+      "id": "reports",
+      "label": "Reports"
+    },
+    {
+      "id": "data",
+      "label": "Data"
+    },
+    {
+      "id": "settings",
+      "label": "Settings"
+    },
+    {
+      "id": "privacy",
+      "label": "Privacy"
+    },
+    {
+      "id": "help",
+      "label": "Help"
+    }
+  ],
+  "renderHandlers": [
+    "dashboard",
+    "people",
+    "interactions",
+    "journal",
+    "patterns",
+    "reciprocity",
+    "reliability",
+    "communication",
+    "predictions",
+    "relationships",
+    "reports",
+    "data",
+    "settings",
+    "privacy",
+    "help",
+    "initiative",
+    "boundaries",
+    "conflict",
+    "support",
+    "context",
+    "preferences",
+    "decisions",
+    "memory",
+    "judgment",
+    "weekly",
+    "monthly",
+    "commitments",
+    "copilot",
+    "openloops",
+    "playbook",
+    "situations",
+    "signals",
+    "decisionlab",
+    "experiments"
+  ],
+  "actionDispatcherNames": [
+    "addPerson",
+    "editPerson",
+    "deletePerson",
+    "viewPerson",
+    "addInteraction",
+    "editInteraction",
+    "deleteInteraction",
+    "addObservation",
+    "deleteObservation",
+    "addFavor",
+    "deleteFavor",
+    "addCommitment",
+    "deleteCommitment",
+    "addPrediction",
+    "deletePrediction",
+    "outcomePrediction",
+    "addPreference",
+    "deletePreference",
+    "addBoundary",
+    "deleteBoundary",
+    "addConflict",
+    "deleteConflict",
+    "addSupport",
+    "deleteSupport",
+    "addStatement",
+    "deleteStatement",
+    "quickCapture",
+    "universalCapture",
+    "simulate",
+    "showMoreInteractions",
+    "addMemory",
+    "deleteMemory",
+    "completeMemory",
+    "confirmMemory",
+    "archiveMemory",
+    "addDecision",
+    "deleteDecision",
+    "decisionOutcome",
+    "decisionBrief",
+    "personBrief360",
+    "healthReview",
+    "healthRepair",
+    "healthIgnore",
+    "addFollowUp",
+    "completeFollowUp",
+    "snoozeFollowUp",
+    "addSelfReflection",
+    "runWeeklyReview",
+    "runMonthlyReview",
+    "addSurprise",
+    "deleteSurprise",
+    "addChangeOfMind",
+    "deleteChangeOfMind",
+    "aiPreview",
+    "viewAuditLog",
+    "openHelp",
+    "openActionHelp",
+    "evidenceExplore",
+    "encryptedBackup",
+    "restoreEncrypted",
+    "openAIPermissions",
+    "buildReport",
+    "buildReportMd",
+    "createObsReminder",
+    "reachOut",
+    "setLock",
+    "lockApp",
+    "unlockApp",
+    "setImportance",
+    "completeCommitment",
+    "lateCommitment",
+    "cancelCommitment",
+    "unknownCommitment",
+    "findPatterns",
+    "challenge",
+    "challengeText",
+    "blind",
+    "forecast",
+    "generateReport",
+    "exportReport",
+    "aiQuestion",
+    "answerQuestion",
+    "compare",
+    "evidence",
+    "nextObservations",
+    "loadDemo",
+    "backup",
+    "strategy",
+    "situationCompare",
+    "decisionLab",
+    "addExperiment",
+    "experimentOutcome",
+    "deleteExperiment",
+    "addRelationshipGoal",
+    "deleteRelationshipGoal",
+    "askCopilot",
+    "askCopilotQuick",
+    "openCopilotWorkspace",
+    "addOpenLoop",
+    "closeOpenLoop",
+    "debrief",
+    "prepare",
+    "expectation",
+    "recordLesson",
+    "resolveExpectation",
+    "eveningDebrief",
+    "copilotQuick",
+    "saveJson",
+    "loadJson",
+    "resetAll",
+    "printReport",
+    "exportCSV"
+  ],
+  "bundledModuleSections": [
+    "utils.js",
+    "storage.js",
+    "analytics.js",
+    "icons.js",
+    "ai.js",
+    "copilot.js",
+    "intelligence.js",
+    "state.js",
+    "charts.js",
+    "ui.js",
+    "reports.js",
+    "export.js",
+    "validation.js",
+    "capture.js",
+    "automation.js",
+    "guidance.js",
+    "demo.js",
+    "worker.js",
+    "views.js",
+    "app.js"
+  ],
+  "defaultSettingsKeys": [
+    "theme",
+    "aiEnabled",
+    "aiProvider",
+    "aiEndpoint",
+    "aiModel",
+    "demoMode",
+    "userName",
+    "onboardingDone",
+    "analyticsMode",
+    "quickCapture",
+    "briefingMode",
+    "verbosity",
+    "backupReminder",
+    "notifCategories"
+  ]
+}
