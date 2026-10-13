@@ -1,9 +1,20 @@
 import { personaV4uxDirectory } from "../domain/daily-use.mjs";
 
+export function personaV4uxCard(p){
+ const name=String(p.name||"Unnamed person"),id=esc2(p.id);
+ return '<article class="card v4ux-person-card" aria-label="Person: '+esc2(name)+'">'+
+  '<div class="v4ux-person-card-top"><div class="avatar-lg" aria-hidden="true" style="background:'+colorFor(name)+'">'+esc2(initials(name))+'</div>'+
+  '<div class="v4ux-person-identity"><strong>'+esc2(name)+'</strong><p>'+
+  esc2([p.relationshipType,p.organization].filter(Boolean).join(" · ")||"Relationship not specified")+'</p>'+
+  (p.alias?'<small>Also known as '+esc2(p.alias)+'</small>':"")+'</div></div>'+
+  '<div class="v4ux-person-actions"><button class="btn btn-primary btn-sm" type="button" data-action="viewPerson" data-arg="'+id+'">Open profile</button>'+
+  '<button class="btn btn-sm" type="button" data-action="quickCapture" data-arg="'+id+'">Log interaction</button></div></article>';
+}
+
 export function personaV4uxDirectoryHTML() {
  const s=getState(),people=peopleList(),q=s._v4uxPeopleQuery||"",sort=s._v4uxPeopleSort||"name",limit=s._v4uxPeopleLimit||36;
  const x=personaV4uxDirectory(people,s.data.interactions,q,sort,limit);
- const cards=x.items.map(personCard).join("");
+ const cards=x.items.map(personaV4uxCard).join("");
  return `<div class="page-head"><div><div class="page-title">People</div><div class="page-desc">Find a person, remember the context, and log what matters.</div></div><div class="head-actions"><button class="btn btn-primary" data-action="addPerson">${icon("plus",15)} Add person</button></div></div>
  <section class="v4ux-directory" aria-label="Search saved people">
  <div class="v4ux-directory-controls">
@@ -21,7 +32,7 @@ export function personaV4uxRefreshDirectory() {
  const selection=personaV4uxDirectory(peopleList(),s.data.interactions,s._v4uxPeopleQuery||"",s._v4uxPeopleSort||"name",s._v4uxPeopleLimit||36);
  counter.textContent=selection.shown+" of "+selection.matched+" matching people"+(selection.matched!==selection.total?" · "+selection.total+" total":"");
  container.innerHTML=selection.matched?
-  '<div id="v4uxPeopleGrid" class="grid v4ux-people-grid">'+selection.items.map(personCard).join("")+'</div>'+
+  '<div id="v4uxPeopleGrid" class="grid v4ux-people-grid">'+selection.items.map(personaV4uxCard).join("")+'</div>'+
   (selection.more?'<button class="btn v4ux-more" data-action="v4uxPeopleMore" type="button">Show more people</button>':""):
   '<div class="v4ux-empty"><p>'+((s.data.people||[]).length?"No people match that search.":"No people saved yet.")+'</p><button class="btn" data-action="v4uxClearPeople">Clear search</button></div>';
 }
