@@ -234,6 +234,10 @@ for (const p of v4PostmergePatches) {
   const start = html.indexOf(p.start), end = html.indexOf(p.end, start + p.start.length);
   if (start < 0 || end < 0) throw new Error("v4 integrity build marker absent: " + p.id);
   const existing = html.slice(start, end);
+  // The Stage 3 Today selector replaces the older inline renderer only after
+  // the historical migration patch has been certified.
+  if (p.id === "followup-local-date" &&
+      existing === "  function todayItems() {\n    return personaSelectTodayItems(getState().data, todayLocal(), new Date().toISOString());\n  }\n") continue;
   if (existing === p.after) continue;
   if (existing !== p.before) throw new Error("v4 integrity source drift: " + p.id);
   html = html.slice(0, start) + p.after + html.slice(end);
