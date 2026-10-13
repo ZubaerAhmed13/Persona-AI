@@ -112,7 +112,7 @@ test("Today, navigation badges and follow-up report agree after snooze expiry", 
     'if (await ensurePersonaV4SchemaRepair()) await loadAll();',
     'await personaAtomicRestore(await openDb(), Object.fromEntries(STORES.map((s) => [s, []])))',
     'const today = todayLocal();',
-    'if (!personaV4IsFollowUpDue(f, today)) return;',
+    'return personaSelectTodayItems(getState().data, todayLocal(), new Date().toISOString());',
     'localStorage.removeItem("persona.v4.schemaRepair.v1")',
     'External AI configured'
   ]) assert.ok(html.includes(marker), "Expected production safety hook: " + marker);
