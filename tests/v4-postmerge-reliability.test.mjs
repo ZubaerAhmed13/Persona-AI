@@ -112,5 +112,7 @@ test("Today, navigation badges and follow-up report agree after snooze expiry", 
     'localStorage.removeItem("persona.v4.schemaRepair.v1")',
     'External AI configured'
   ]) assert.ok(html.includes(marker), "Expected production safety hook: " + marker);
-  assert.equal(html.includes('if (f.status === "done" || f.status === "snoozed") return;'), false);
+  const todaySource = html.slice(html.indexOf("  function todayItems() {"), html.indexOf("  function relationshipBriefing() {"));
+  assert.equal(todaySource.includes('if (f.status === "done" || f.status === "snoozed") return;'), false,
+    "Expired snoozes must reappear in the Today task view");
 });
