@@ -761,6 +761,25 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   .v4-mobile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
   .v4-mobile-icon { display: grid; place-items: center; }
 }
+
+/* Stage 3: seven-day agenda is readable and keyboard-friendly on any device. */
+.persona-agenda { margin-bottom: 16px; }
+.persona-agenda-desc { color: var(--text-soft); font-size: .8rem; line-height: 1.6; margin: 8px 0 14px; }
+.persona-agenda-list { border-top: 1px solid var(--border-soft); }
+.persona-agenda-row { display: grid; grid-template-columns: 94px minmax(0,1fr) auto; gap: 14px;
+  align-items: center; padding: 13px 0; border-bottom: 1px solid var(--border-soft); }
+.persona-agenda-row:last-child { border-bottom: none; }
+.persona-agenda-date { color: var(--accent); font-weight: 700; font-size: .76rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.persona-agenda-details { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.persona-agenda-details strong { color: var(--text-strong); font-size: .84rem; overflow-wrap: anywhere; }
+.persona-agenda-details span { color: var(--text-muted); font-size: .73rem; }
+.persona-agenda-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.persona-agenda-empty { padding: 14px 0 4px; color: var(--text-soft); font-size: .84rem; }
+@media (max-width: 720px) {
+  .persona-agenda-row { grid-template-columns: 1fr; gap: 7px; }
+  .persona-agenda-actions { justify-content: flex-start; }
+  .persona-agenda-actions .btn { min-height: 36px; }
+}
 /* PERSONA_V4_WORKSPACE_CSS_END */
 </style>
 </head>
@@ -1537,18 +1556,11 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 
   /* PERSONA_V4_WORKSPACE_RUNTIME_START */
   function personaV4IsFollowUpOpen(item, today) {
-    if (!item || item.completed === true || item.cancelled === true) return false;
-    const status = String(item.status || "").toLowerCase();
-    if (["done", "completed", "cancelled"].includes(status)) return false;
-    return status !== "snoozed" || personaV4IsFollowUpDue(item, today);
+    return personaFollowUpOpen(item, today);
   }
   
   function personaV4IsFollowUpDue(item, today) {
-    if (!item || item.completed === true || item.cancelled === true) return false;
-    const status = String(item.status || "").toLowerCase();
-    if (["done", "completed", "cancelled"].includes(status)) return false;
-    const due = item.dueDate ? String(item.dueDate).slice(0, 10) : "";
-    return !due || due <= today;
+    return personaFollowUpDue(item, today);
   }
   
   function personaV4InitWorkspace() {
@@ -1731,6 +1743,125 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
       '<div class="v4-simple-hero" style="margin-top:18px"><p class="muted">Need a wider view of commitments, predictions, and unresolved decisions? Open <button class="link-btn" data-goto="openloops">Open Loops</button>.</p></div>';
   }
   /* PERSONA_V4_WORKSPACE_RUNTIME_END */
+
+  /* PERSONA_V4_TODAY_DOMAIN_START */
+  function personaCalendarDay(value) {
+    const text = String(value ?? "");
+    const day = text.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return "";
+    const parsed = new Date(day + "T12:00:00.000Z");
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === day ? day : "";
+  }
+  
+  function personaAddCalendarDays(day, offset) {
+    const valid = personaCalendarDay(day);
+    if (!valid || !Number.isInteger(offset)) return "";
+    const date = new Date(valid + "T12:00:00.000Z");
+    date.setUTCDate(date.getUTCDate() + offset);
+    return date.toISOString().slice(0, 10);
+  }
+  
+  function personaRecordClosed(item) {
+    if (!item || typeof item !== "object" || item.completed === true || item.cancelled === true) return true;
+    return ["done", "completed", "cancelled", "archived"].includes(String(item.status || "").toLowerCase());
+  }
+  
+  function personaFollowUpOpen(item, today) {
+    if (personaRecordClosed(item)) return false;
+    if (String(item.status || "").toLowerCase() !== "snoozed") return true;
+    return personaFollowUpDue(item, today);
+  }
+  
+  function personaFollowUpDue(item, today) {
+    if (personaRecordClosed(item)) return false;
+    const day = personaCalendarDay(item.dueDate);
+    return !day || day <= today;
+  }
+  
+  function personaSelectTodayItems(data, today, nowIso) {
+    if (!personaCalendarDay(today)) return [];
+    const rows = [];
+    const all = (name) => Array.isArray(data?.[name]) ? data[name] : [];
+    const fallback = typeof nowIso === "string" && nowIso ? nowIso : today + "T12:00:00";
+    for (const c of all("commitments")) {
+      if (personaRecordClosed(c)) continue;
+      const due = personaCalendarDay(c.expectedCompletion || c.dueDate);
+      if (!due || due > today) continue;
+      rows.push({ kind: "commitment", personId: c.personId, text: c.commitment || c.description || "Commitment", due, overdue: due < today, id: c.id });
+    }
+    for (const p of all("predictions")) {
+      if (p.outcome && p.outcome !== "pending") continue;
+      rows.push({ kind: "prediction", personId: p.personId, text: p.predictionText || p.prediction || p.target || "Prediction", due: p.date || fallback, id: p.id });
+    }
+    for (const f of all("followUps")) {
+      if (!personaFollowUpDue(f, today)) continue;
+      const due = personaCalendarDay(f.dueDate);
+      rows.push({ kind: "followUp", personId: f.personId, text: f.text || f.title || f.description || "Follow-up", due: due || fallback, id: f.id });
+    }
+    for (const m of all("memories")) {
+      if (personaRecordClosed(m)) continue;
+      const due = personaCalendarDay(m.reminderDate);
+      if (!due || due > today) continue;
+      rows.push({ kind: "memory", personId: m.personId, text: m.info || m.text || "Memory", due, id: m.id });
+    }
+    return rows.sort((a, b) => String(a.due).localeCompare(String(b.due)) ||
+      String(a.kind).localeCompare(String(b.kind)) || String(a.id).localeCompare(String(b.id)));
+  }
+  
+  function personaSelectWeekAhead(data, today, days = 7) {
+    if (!personaCalendarDay(today) || !Number.isInteger(days) || days < 1 || days > 31) return [];
+    const limit = personaAddCalendarDays(today, days);
+    const all = (name) => Array.isArray(data?.[name]) ? data[name] : [];
+    const rows = [];
+    const add = (kind, item, due, text) => {
+      if (due && due > today && due <= limit)
+        rows.push({ kind, personId: item.personId, id: item.id, text, due });
+    };
+    for (const c of all("commitments")) {
+      if (!personaRecordClosed(c))
+        add("commitment", c, personaCalendarDay(c.expectedCompletion || c.dueDate), c.commitment || c.description || "Commitment");
+    }
+    for (const f of all("followUps")) {
+      if (!personaRecordClosed(f))
+        add("followUp", f, personaCalendarDay(f.dueDate), f.text || f.title || f.description || "Follow-up");
+    }
+    for (const m of all("memories")) {
+      if (!personaRecordClosed(m))
+        add("memory", m, personaCalendarDay(m.reminderDate), m.info || m.text || "Memory");
+    }
+    return rows.sort((a, b) => a.due.localeCompare(b.due) || a.kind.localeCompare(b.kind) ||
+      String(a.id).localeCompare(String(b.id)));
+  }
+  /* PERSONA_V4_TODAY_DOMAIN_END */
+
+  /* PERSONA_V4_WEEK_AGENDA_START */
+  function personaRenderWeekAheadAgenda(data, today) {
+    const upcoming = personaSelectWeekAhead(data, today, 7);
+    const actions = {
+      commitment: ["completeCommitment", "Complete", "Commitment", "commitments"],
+      followUp: ["completeFollowUp", "Done", "Follow-up", "followups"],
+      memory: ["completeMemory", "Check in", "Memory", "memory"]
+    };
+    const rows = upcoming.slice(0, 5).map((item) => {
+      const [action, actionLabel, type, destination] = actions[item.kind];
+      const who = item.personId ? personName(item.personId) : "General";
+      return '<div class="persona-agenda-row">' +
+        '<span class="persona-agenda-date">' + esc2(item.due) + '</span>' +
+        '<div class="persona-agenda-details"><strong>' + esc2(item.text) + '</strong>' +
+        '<span>' + esc2(type) + ' · ' + esc2(who) + '</span></div>' +
+        '<div class="persona-agenda-actions">' +
+        '<button class="btn btn-sm btn-primary" data-action="' + action + '" data-arg="' + esc2(item.id) + '">' + actionLabel + '</button>' +
+        '<button class="btn btn-sm" data-goto="' + destination + '" aria-label="Open ' + type + ' workspace">View</button></div></div>';
+    }).join("");
+    return '<section class="card persona-agenda" aria-label="Seven-day agenda">' +
+      '<div class="card-title">Coming up <span class="ctl muted">' + upcoming.length + ' planned · next 7 days</span></div>' +
+      '<p class="persona-agenda-desc">A preview of scheduled commitments, follow-ups and memory reminders. Everything stays on this device.</p>' +
+      (rows ? '<div class="persona-agenda-list">' + rows + '</div>' +
+        (upcoming.length > 5 ? '<p class="persona-agenda-desc">Showing the first 5 of ' + upcoming.length + ' items. Open the related workspaces to see the rest.</p>' : '') :
+        '<div class="persona-agenda-empty">Nothing scheduled for the next seven days. <button class="link-btn" data-action="addFollowUp">Add a follow-up</button></div>') +
+      '</section>';
+  }
+  /* PERSONA_V4_WEEK_AGENDA_END */
 
   // js/storage.js
   var storage_exports = {};
@@ -2943,34 +3074,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     return byId("people", id)?.name || "This person";
   }
   function todayItems() {
-    const s = getState();
-    const out = [];
-    const now = /* @__PURE__ */ new Date();
-    const today = todayLocal();
-    s.data.commitments.forEach((c) => {
-      const due = (c.expectedCompletion || "").slice(0, 10);
-      if (c.completed || c.cancelled) return;
-      const overdue = due && due < today;
-      const dueToday = due === today;
-      if (overdue || dueToday) out.push({ kind: "commitment", personId: c.personId, text: c.commitment, due, overdue, id: c.id });
-    });
-    s.data.predictions.forEach((p) => {
-      if (!p.outcome || p.outcome === "pending") out.push({ kind: "prediction", personId: p.personId, text: p.predictionText || p.target || "Prediction", due: p.date, id: p.id });
-    });
-    s.data.followUps.forEach((f) => {
-      if (!personaV4IsFollowUpDue(f, today)) return;
-      const due = (f.dueDate || "").slice(0, 10);
-      out.push({ kind: "followUp", personId: f.personId, text: f.text, due, id: f.id });
-    });
-    s.data.memories.forEach((m) => {
-      if (m.reminderDate && (m.reminderDate.slice(0, 10) === today || m.reminderDate.slice(0, 10) < today) && m.status !== "done") {
-        out.push({ kind: "memory", personId: m.personId, text: m.info, due: m.reminderDate, id: m.id });
-      }
-    });
-    out.forEach((i) => {
-      if (!i.due) i.due = now.toISOString();
-    });
-    return sortBy(out, "due");
+    return personaSelectTodayItems(getState().data, todayLocal(), new Date().toISOString());
   }
   function relationshipBriefing() {
     const people = getState().data.people;
@@ -8766,6 +8870,8 @@ self.onmessage = function (e) {
     </div>
   </div>
   ${demo ? `<div class="demo-banner">${icon("info", 16)} Demo data loaded \u2014 all people and entries are fictional and clearly labeled as such.</div>` : ""}
+
+  ${personaRenderWeekAheadAgenda(s.data, todayLocal())}
 
   ${saveResumeCard()}
 
