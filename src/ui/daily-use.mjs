@@ -2,9 +2,9 @@ import { personaV4uxDirectory } from "../domain/daily-use.mjs";
 
 export function personaV4uxCard(p){
  const name=String(p.name||"Unnamed person"),id=esc2(p.id);
- return '<article class="card v4ux-person-card" aria-label="Person: '+esc2(name)+'">'+
+ return '<article class="card person-card v4ux-person-card" data-action="viewPerson" data-arg="'+id+'" aria-label="Person: '+esc2(name)+'">'+
   '<div class="v4ux-person-card-top"><div class="avatar-lg" aria-hidden="true" style="background:'+colorFor(name)+'">'+esc2(initials(name))+'</div>'+
-  '<div class="v4ux-person-identity"><strong>'+esc2(name)+'</strong><p>'+
+  '<div class="v4ux-person-identity"><strong class="person-name">'+esc2(name)+'</strong><p>'+
   esc2([p.relationshipType,p.organization].filter(Boolean).join(" · ")||"Relationship not specified")+'</p>'+
   (p.alias?'<small>Also known as '+esc2(p.alias)+'</small>':"")+'</div></div>'+
   '<div class="v4ux-person-actions"><button class="btn btn-primary btn-sm" type="button" data-action="viewPerson" data-arg="'+id+'">Open profile</button>'+
