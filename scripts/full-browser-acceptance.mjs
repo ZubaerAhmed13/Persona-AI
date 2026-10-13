@@ -462,7 +462,8 @@ async function testLegacyMigrationRecovery(cdp) {
   await openView(cdp, "openloops");
   await waitUntil(cdp, '(document.querySelector("#view")?.innerText || "").includes("Expired snooze test reminder")',
     "expired-snooze appears in historical Open Loops");
-  await openView(cdp, "followups");
+  await cdp.evaluate('document.querySelector(\'#v4PrimaryNav [data-v4-view="followups"]\').click()');
+  await waitUntil(cdp, '(document.querySelector(".page-title")?.innerText || "") === "Follow-ups"', "post-migration Follow-ups view");
   assert.equal(await cdp.evaluate('!!document.querySelector(\'[data-action="completeFollowUp"][data-arg="v4-expired-snooze"]\')'), true,
     "Expired snooze missing from actionable Follow-ups");
 }
