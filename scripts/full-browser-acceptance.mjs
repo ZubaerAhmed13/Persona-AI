@@ -354,6 +354,34 @@ async function regressAllViews(cdp, runtimeErrors) {
   }
 }
 
+async function testV4PeopleActivity(cdp) {
+  await openView(cdp, "interactions");
+  await waitUntil(cdp, '!!document.querySelector("#v4ActivityTimeline .v4-activity-entry")', "unified Activity timeline");
+  const initial = await cdp.evaluate('(() => ({ heading:document.querySelector(".page-title")?.textContent, kinds:[...document.querySelectorAll("#v4ActivityTimeline .v4-activity-kind")].map(el=>el.textContent), controls:!!document.querySelector("[data-list-type=\\"interactions\\"]") && !!document.querySelector("[data-action=\\"addInteraction\\"]") }))()');
+  assert.equal(initial.heading, "Activity", "Workspace heading was not updated");
+  assert.equal(initial.controls, true, "Legacy interaction list/edit affordances were replaced");
+  for (const label of ["Interaction", "Memory", "Decision", "Commitment", "Follow-up"]) {
+    assert.ok(initial.kinds.includes(label), "Activity missed fixture category: " + label);
+  }
+  const personFilter = await cdp.evaluate('(() => { const s=document.querySelector("#v4ActivityPerson"); s.value="v31-person"; s.dispatchEvent(new Event("change",{bubbles:true})); return !!document.querySelector("#v4ActivityTimeline [data-v4-results]"); })()');
+  assert.equal(personFilter,true);
+  const selectedNames = await cdp.evaluate('[...document.querySelectorAll("#v4ActivityTimeline .v4-activity-entry-foot>span")].map(el=>el.textContent)');
+  assert.ok(selectedNames.every((name)=>name === "V3.1 Compatibility Person"), "Person filter showed another person's activity");
+  await cdp.evaluate('(() => { const q=document.querySelector("#v4ActivitySearch");q.value="unlikely search that matches nothing";q.dispatchEvent(new Event("input",{bubbles:true})); })()');
+  assert.equal(await cdp.evaluate('(document.querySelector("#v4ActivityTimeline [data-v4-count]")?.textContent || "")'), "0 of 0 recorded items");
+  await openView(cdp, "people");
+  assert.equal(await cdp.evaluate('(() => { const el=document.querySelector(\'[data-action="viewPerson"][data-arg="v31-person"]\'); if (!el) return false; el.click(); return true; })()'), true, "Could not open historical person profile");
+  await waitUntil(cdp, '!!document.querySelector(".v4-person-snapshot") && !!document.querySelector("#v4PersonTimeline")', "Stage 4 person summary and activity");
+  const profile = await cdp.evaluate('(() => ({ name:document.querySelector(".ph-name")?.textContent, follow:!!document.querySelector(\'.v4-person-snapshot [data-action="addFollowUp"][data-arg="v31-person"]\'), edit:!!document.querySelector(\'.v4-person-snapshot [data-action="editPerson"][data-arg="v31-person"]\'), timeline:document.querySelectorAll("#v4PersonTimeline .v4-activity-entry").length }))()');
+  assert.equal(profile.name, "V3.1 Compatibility Person");
+  assert.ok(profile.follow && profile.edit, "Contextual quick actions absent");
+  assert.ok(profile.timeline>0, "Person timeline has no fixture records");
+  await cdp.evaluate('(() => { const q=document.querySelector("#v4PersonSearch");q.value="hiking";q.dispatchEvent(new Event("input",{bubbles:true})); })()');
+  const count = await cdp.evaluate('document.querySelector("#v4PersonTimeline [data-v4-count]")?.textContent || ""');
+  assert.match(count,/recorded items$/);
+  assert.equal(await cdp.evaluate('!!document.querySelector(".v4-person-snapshot")'),true);
+}
+
 async function runCoreCrudWorkflow(cdp) {
   await openView(cdp, "people");
   assert.equal(await cdp.evaluate(`(() => { const el=document.querySelector('[data-action="addPerson"]'); if(!el)return false; el.click(); return true; })()`), true, "Add Person action unavailable");
@@ -677,6 +705,7 @@ try {
 
   await regressAllViews(cdp, runtimeErrors);
   await testV4Workspace(cdp);
+  await testV4PeopleActivity(cdp);
   await runCoreCrudWorkflow(cdp);
   await testLocalAnalysis(cdp, apiRequests, requestUrls);
 

@@ -20,6 +20,8 @@ import { personaV4IsFollowUpOpen, personaV4IsFollowUpDue, personaV4InitWorkspace
 import { personaCalendarDay, personaAddCalendarDays, personaRecordClosed, personaFollowUpOpen, personaFollowUpDue, personaSelectTodayItems, personaSelectWeekAhead } from "../src/domain/today.mjs";
 import { personaRenderWeekAheadAgenda } from "../src/ui/agenda.mjs";
 import { repairPersonaLegacySchemas } from "../src/safety/migration.mjs";
+import { personaV4ActivityList, personaV4PersonSummary, personaV4FilterActivity } from "../src/domain/person-activity.mjs";
+import { personaV4EscapeActivity, personaV4RenderActivityRows, personaV4RenderActivityShell, personaV4MountPeopleActivity, personaV4BindPeopleActivity } from "../src/ui/person-activity.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -92,6 +94,44 @@ const workspaceBlock = "  /* PERSONA_V4_WORKSPACE_RUNTIME_START */\n" +
 const workspaceRe = /  \/\* PERSONA_V4_WORKSPACE_RUNTIME_START \*\/[\s\S]*?  \/\* PERSONA_V4_WORKSPACE_RUNTIME_END \*\//;
 if (workspaceRe.test(html)) html = html.replace(workspaceRe, workspaceBlock);
 else replaceOnce("  // js/storage.js", workspaceBlock + "\n\n  // js/storage.js", "inject Persona v4 workspace runtime");
+
+// Stage 4: read-only People overview and six-source Activity timeline.
+// Preserve legacy renderers, actions, schema, and local-first distribution.
+const personActivityCss = await readFile(resolve(root, "src/ui/person-activity.css"), "utf8");
+const personActivityCssBlock = "\n/* PERSONA_V4_PERSON_ACTIVITY_CSS_START */\n" +
+  personActivityCss.trimEnd() + "\n/* PERSONA_V4_PERSON_ACTIVITY_CSS_END */\n";
+const personActivityCssRe = /\n\/\* PERSONA_V4_PERSON_ACTIVITY_CSS_START \*\/[\s\S]*?\/\* PERSONA_V4_PERSON_ACTIVITY_CSS_END \*\/\n/;
+if (personActivityCssRe.test(html)) html = html.replace(personActivityCssRe, personActivityCssBlock);
+else {
+  const close = html.indexOf("</style>");
+  if (close < 0) throw new Error("Persona v4 People/Activity style insertion point missing");
+  html = html.slice(0, close) + personActivityCssBlock + html.slice(close);
+}
+
+const personActivityFns = [
+  personaV4ActivityList, personaV4PersonSummary, personaV4FilterActivity,
+  personaV4EscapeActivity, personaV4RenderActivityRows, personaV4RenderActivityShell,
+  personaV4MountPeopleActivity, personaV4BindPeopleActivity
+];
+const personActivityBlock = "  /* PERSONA_V4_PERSON_ACTIVITY_START */\n" +
+  personActivityFns.map((fn) => fn.toString()).join("\n\n").split("\n").map((line) => "  " + line).join("\n") +
+  "\n  /* PERSONA_V4_PERSON_ACTIVITY_END */";
+const personActivityRe = /  \/\* PERSONA_V4_PERSON_ACTIVITY_START \*\/[\s\S]*?  \/\* PERSONA_V4_PERSON_ACTIVITY_END \*\//;
+if (personActivityRe.test(html)) html = html.replace(personActivityRe, personActivityBlock);
+else replaceOnce("  // js/storage.js", personActivityBlock + "\n\n  // js/storage.js", "inject Persona v4 People/Activity runtime");
+
+replaceOnce(
+  "    root().innerHTML = html;\n    injectHelpButton(v);",
+  "    root().innerHTML = html;\n    personaV4MountPeopleActivity(v);\n    injectHelpButton(v);",
+  "render Stage 4 People/Activity overlays",
+  "    personaV4MountPeopleActivity(v);\n    injectHelpButton(v);"
+);
+replaceOnce(
+  "    bindFilters();\n  }\n  function bindReportSections()",
+  "    bindFilters();\n    personaV4BindPeopleActivity();\n  }\n  function bindReportSections()",
+  "bind Stage 4 People/Activity timeline",
+  "    personaV4BindPeopleActivity();\n  }\n  function bindReportSections()"
+);
 
 // Stage 3 read-only domain facade and optional dashboard agenda. Neither
 // changes IndexedDB schema, existing action IDs, or legacy view dispatch.

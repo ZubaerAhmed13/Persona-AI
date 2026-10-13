@@ -17,7 +17,7 @@ test("untrusted historical IDs are escaped in HTML attributes without changing t
 });
 
 test("generated legacy HTML has no unescaped dynamic dataset, value or accessibility attributes", () => {
-  const unsafe = [...html.matchAll(attrRE)].filter((m) => !/^esc(?:2|3)\s*\(/.test(m[2].trim()))
+  const unsafe = [...html.matchAll(attrRE)].filter((m) => !/^(?:esc(?:2|3)|personaV4EscapeActivity)\s*\(/.test(m[2].trim()))
     .map((m) => m[0]);
   assert.deepEqual(unsafe, [], "Potential imported ID/attribute injection in production templates");
   assert.ok(html.includes('data-arg="${esc2(p.id)}"'), "Person click IDs not escaped");
@@ -35,4 +35,12 @@ test("legacy person memory and preparation HTML escapes raw observations before 
     'loops.slice(0, 4).map((l) => l.text).join(',
     'mems.map((m2) => m2.info).join('
   ]) assert.equal(html.includes(unsafe), false);
+});
+
+test("pre-escaped Stage 4 HTML attributes stay safe and are not double-encoded", () => {
+  const source = '<button data-arg="${personaV4EscapeActivity(person.id)}" title="${untrusted}"></button>';
+  const result = escapeDynamicTemplateAttributes(source);
+  assert.equal(result.changed, 1);
+  assert.equal(result.source,
+    '<button data-arg="${personaV4EscapeActivity(person.id)}" title="${esc2(untrusted)}"></button>');
 });

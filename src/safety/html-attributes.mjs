@@ -5,7 +5,7 @@ export function escapeDynamicTemplateAttributes(source) {
   let count = 0;
   const result = source.replace(attr, (_all, prefix, expression, suffix) => {
     const expr = expression.trim();
-    if (/^esc(?:2|3)\s*\(/.test(expr)) return _all;
+    if (/^(?:esc(?:2|3)|personaV4EscapeActivity)\s*\(/.test(expr)) return _all;
     count++;
     return prefix + "${esc2(" + expr + ")}" + suffix;
   });
