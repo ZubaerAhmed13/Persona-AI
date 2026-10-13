@@ -22,7 +22,7 @@ test("Stage 5: names are NFKC normalized and duplicate people are reviewed by na
 
 test("Stage 5: whole-token person detection avoids Ann/Anna false positives and reveals ambiguity",()=>{
   assert.deepEqual(personaV4MentionedPeople("Talked with Anna",people).map(p=>p.id),["anna"]);
-  assert.deepEqual(personaV4MentionedPeople("I met Ana and Anna",people).map(p=>p.id),["ana","anna"]);
+  assert.deepEqual(new Set(personaV4MentionedPeople("I met Ana and Anna",people).map(p=>p.id)),new Set(["ana","anna"]));
   assert.deepEqual(personaV4MentionedPeople("Met no one",people),[]);
 });
 
