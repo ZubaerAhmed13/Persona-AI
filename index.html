@@ -882,6 +882,45 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 @media(max-width:700px){.v4s7-head{flex-direction:column;gap:8px}.v4s7-panel,.v4s7-answer{padding:12px}}
 @media(prefers-reduced-motion:reduce){.v4s7-source{transition:none}}
 /* PERSONA_V4_STAGE7_CSS_END */
+/* PERSONA_V4_STAGE8_CSS_START */
+/* Persona AI 4.0 Stage 8 — evidence-based relationship explorer */
+.v4s8-panel{margin:0 0 16px}
+.v4s8-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.v4s8-header h2{font-size:1.1rem;font-weight:700;color:var(--text-strong);margin:0}
+.v4s8-header>span,.v4s8-muted{font-size:.79rem;line-height:1.5;color:var(--text-soft)}
+.v4s8-toolbar{display:flex;gap:16px;align-items:end;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+.v4s8-search-label{display:flex;flex:1;min-width:230px;max-width:425px;flex-direction:column;gap:6px;font-size:.78rem;color:var(--text-soft)}
+.v4s8-network-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(190px,1fr);gap:12px}
+.v4s8-figure{border:1px solid var(--border);border-radius:10px;min-width:0;background:var(--bg);padding:8px}
+.v4s8-map{width:100%;height:auto;max-height:420px;display:block}
+.v4s8-map-node{cursor:pointer}
+.v4s8-map-node:focus-visible{outline:none}
+.v4s8-map-node:focus-visible circle{stroke-width:4;stroke:var(--ok)}
+.v4s8-map-selected text{font-weight:700}
+.v4s8-explainer{font-size:.72rem;color:var(--text-soft);padding:0 8px 8px;margin:0;line-height:1.6}
+.v4s8-directory{max-height:420px;overflow:auto;display:grid;gap:6px;align-content:start}
+.v4s8-person-row,.v4s8-source{width:100%;text-align:left;display:flex;flex-direction:column;align-items:start;gap:4px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text-strong);font:inherit;cursor:pointer;min-width:0}
+.v4s8-person-row.active{border-color:var(--accent);background:var(--accent-soft)}
+.v4s8-person-row:hover,.v4s8-source:hover{border-color:var(--accent)}
+.v4s8-name{font-size:.83rem;font-weight:700;overflow-wrap:anywhere}
+.v4s8-detail{border-top:1px solid var(--border);margin-top:14px;padding-top:12px}
+.v4s8-detail-head{display:flex;gap:10px;justify-content:space-between;align-items:start;flex-wrap:wrap}
+.v4s8-detail-head h3,.v4s8-review h3{margin:0 0 4px;font-size:.9rem}
+.v4s8-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.v4s8-source{font-size:.82rem;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap}
+.v4s8-source-meta{font-size:.7rem;color:var(--accent);font-weight:700;text-transform:capitalize}
+.v4s8-source-record{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+.v4s8-inference{border:1px solid var(--border);padding:12px;border-radius:10px;margin-top:10px}
+.v4s8-inference p{margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.v4s8-review{margin-top:12px;line-height:1.55}
+.v4s8-review .v4s8-source{margin-top:7px}
+.v4s8-classic{margin:12px 0 16px}
+.v4s8-classic summary{cursor:pointer;font-size:.82rem;color:var(--text-soft);padding:8px 0}
+.v4s8-panel :focus-visible,.v4s8-classic :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:820px){.v4s8-network-grid{grid-template-columns:1fr}.v4s8-directory{max-height:160px;grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.v4s8-sources{grid-template-columns:1fr}.v4s8-directory{grid-template-columns:1fr}.v4s8-header{flex-direction:column;align-items:start}}
+@media(prefers-reduced-motion:reduce){.v4s8-source,.v4s8-person-row{transition:none}}
+/* PERSONA_V4_STAGE8_CSS_END */
 </style>
 </head>
 <body>
@@ -2860,6 +2899,218 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     };
   }
   /* PERSONA_V4_STAGE7_END */
+
+  /* PERSONA_V4_STAGE8_START */
+  function personaV4Stage8Records(data,personId,limit=12) {
+    const columns={
+      interactions:["observed","whatHappened","type"],observations:["observedBehavior","content","observed"],
+      memories:["info","text"],commitments:["commitment","description"],followUps:["text","description","title"],
+      decisions:["question","situation"]
+    };
+    if(!personId||!Array.isArray(data?.people)||!data.people.some(x=>x?.id===personId))return [];
+    const results=[];
+    for(const [store,keys] of Object.entries(columns)){
+      for(const r of Array.isArray(data?.[store])?data[store]:[]){
+        if(!r||r.personId!==personId||typeof r.id!=="string")continue;
+        const source=keys.map(k=>r[k]).find(x=>typeof x==="string"&&x.trim());
+        const excerpt=String(source||"Recorded "+store).trim().slice(0,300);
+        const dateRaw=String(r.date||r.createdAt||"").slice(0,10);
+        const date=/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)?dateRaw:"";
+        results.push({id:r.id,store,personId,date,text:excerpt});
+      }
+    }
+    return results.sort((a,b)=>b.date.localeCompare(a.date)||a.store.localeCompare(b.store)||a.id.localeCompare(b.id)).slice(0,Math.max(1,Math.min(40,limit)));
+  }
+  
+  function personaV4Stage8Network(data,filter="") {
+    const term=String(filter||"").trim().toLocaleLowerCase();
+    const people=(Array.isArray(data?.people)?data.people:[]).filter(p=>p&&typeof p.id==="string");
+    const interactions=Array.isArray(data?.interactions)?data.interactions:[];
+    const count=new Map(),recent=new Map();
+    for(const i of interactions){
+      if(!i||typeof i.personId!=="string"||!people.some(p=>p.id===i.personId))continue;
+      count.set(i.personId,(count.get(i.personId)||0)+1);
+      const day=String(i.date||i.createdAt||"").slice(0,10);
+      if(/^\d{4}-\d{2}-\d{2}$/.test(day)&&day>(recent.get(i.personId)||""))recent.set(i.personId,day);
+    }
+    const all=people.filter(p=>(String(p.name||"")+" "+String(p.relationshipType||"")+" "+String(p.organization||"")).toLocaleLowerCase().includes(term))
+      .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""))||a.id.localeCompare(b.id));
+    const nodes=all.slice(0,24).map(p=>({id:p.id,name:String(p.name||"Unnamed contact"),type:String(p.relationshipType||"Unspecified"),interactions:count.get(p.id)||0,lastInteraction:recent.get(p.id)||"",evidence:personaV4Stage8Records(data,p.id,40).length}));
+    return {nodes,total:all.length,hidden:Math.max(0,all.length-24),peopleCount:people.length,interactionCount:interactions.filter(i=>count.has(i?.personId)).length,
+      kind:"recorded-user-contact-network",meaning:"A hub connects you to saved people. Line width reflects number of recorded interactions, not relationship quality. No person-to-person links are inferred."};
+  }
+  
+  function personaV4Stage8EvidenceCoverage(data,personId,today) {
+    if(!personId)return null;
+    const all=personaV4Stage8Records(data,personId,40);
+    const byType={};
+    for(const row of all)byType[row.store]=(byType[row.store]||0)+1;
+    const date=/^\d{4}-\d{2}-\d{2}$/.test(String(today||""))?String(today).slice(0,10):"";
+    const current=date?Date.parse(date+"T00:00:00Z"):NaN;
+    const withDates=all.filter(x=>x.date);
+    const recent=withDates.filter(x=>Number.isFinite(current)&&current-Date.parse(x.date+"T00:00:00Z")>=0&&current-Date.parse(x.date+"T00:00:00Z")<=90*86400000).length;
+    const unknown=all.filter(x=>!x.date).length;
+    return {total:all.length,recent,dated:withDates.length,undated:unknown,byType,
+      note:"Counts describe the records visible here, not a personal trait, causal effect, or confidence score."};
+  }
+  
+  function personaV4Stage8DecisionPreview(data,personId,question,impact,reversibility) {
+    if(!personId||!(data?.people||[]).some(p=>p.id===personId))return {ok:false,message:"Choose a person before reviewing evidence."};
+    const prompt=String(question||"").trim();
+    if(!prompt)return {ok:false,message:"Enter the decision question to inspect relevant recorded evidence."};
+    const sources=personaV4Stage8Records(data,personId,40);
+    const tokens=(prompt.toLocaleLowerCase().match(/[\p{L}\p{N}]{4,}/gu)||[]).filter(t=>!["should","would","could","about","with","that","from","what","this","make","person"].includes(t));
+    const ranked=sources.map(s=>({...s,relevance:tokens.reduce((n,t)=>n+(s.text.toLocaleLowerCase().includes(t)?1:0),0)}))
+      .sort((a,b)=>b.relevance-a.relevance||b.date.localeCompare(a.date)||a.id.localeCompare(b.id)).slice(0,6);
+    const cautions=[];
+    if(sources.length<3)cautions.push("Fewer than three related records are visible: evidence is limited.");
+    if(["High","Critical"].includes(impact)&&["Difficult","Irreversible"].includes(reversibility))cautions.push("This is a high-impact, hard-to-reverse choice. Consider alternatives and an independent check.");
+    if(!ranked.some(x=>x.relevance>0))cautions.push("No direct text overlap with this question was found; listed records are context only.");
+    return {ok:true,personId,question:prompt,impact:String(impact||""),reversibility:String(reversibility||""),records:ranked,cautions,
+      note:"This preview presents recorded context. It does not recommend a decision or predict another person's behavior."};
+  }
+  
+  function personaV4Stage8Escape(x){
+    return String(x??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+  
+  function personaV4Stage8Graph(net,selectedId=""){
+    const w=720,h=410,cx=355,cy=200;
+    const nodes=net.nodes||[];
+    const max=Math.max(1,...nodes.map(x=>x.interactions));
+    const paths=nodes.map((nd,i)=>{
+      const ring=i<12?0:1,ringPos=ring===0?i:i-12,amount=Math.min(12,nodes.length-ring*12);
+      const angle=(ringPos/Math.max(1,amount))*Math.PI*2-Math.PI/2;
+      const radius=ring===0?117:183;
+      return {...nd,x:+(cx+Math.cos(angle)*radius).toFixed(2),y:+(cy+Math.sin(angle)*(radius*.85)).toFixed(2)};
+    });
+    return '<svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="Diagram of recorded contacts connected only to you" class="v4s8-map">'+
+      paths.map(n=>'<line x1="'+cx+'" y1="'+cy+'" x2="'+n.x+'" y2="'+n.y+'" stroke="var(--accent)" opacity="'+(n.interactions?".43":".15")+'" stroke-width="'+(1+4*n.interactions/max).toFixed(1)+'"></line>').join("")+
+      '<circle cx="'+cx+'" cy="'+cy+'" r="35" fill="var(--accent)" opacity=".95"></circle><text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" fill="white" font-size="13" font-weight="bold">You</text>'+
+      paths.map(n=>'<g role="button" tabindex="0" data-action="v4NetworkSelect" data-arg="'+personaV4Stage8Escape(n.id)+'" class="v4s8-map-node '+(n.id===selectedId?"v4s8-map-selected":"")+'" aria-label="Select '+personaV4Stage8Escape(n.name)+', '+n.interactions+' recorded interactions">'+
+         '<circle cx="'+n.x+'" cy="'+n.y+'" r="'+(n.id===selectedId?19:15)+'" fill="'+(n.id===selectedId?"var(--accent)":"var(--bg-raise)")+'" stroke="var(--accent)" stroke-width="'+(n.id===selectedId?3:1.6)+'"></circle>'+
+         '<text x="'+n.x+'" y="'+(n.y+29)+'" text-anchor="middle" font-size="11" fill="var(--text-strong)">'+personaV4Stage8Escape(n.name.length>17?n.name.slice(0,16)+"…":n.name)+'</text><title>'+personaV4Stage8Escape(n.name)+": "+n.interactions+' recorded interactions</title></g>').join("")+
+      '</svg>';
+  }
+  
+  function personaV4Stage8EvidenceRow(r){
+    return '<button type="button" class="v4s8-source" data-action="v4NetworkSource" data-arg="'+personaV4Stage8Escape(r.store+"|"+r.id)+"|"+personaV4Stage8Escape(r.personId)+'"><span class="v4s8-source-meta">'+
+      personaV4Stage8Escape(r.store)+" · "+personaV4Stage8Escape(r.date||"Undated")+'</span><span>'+personaV4Stage8Escape(r.text)+'</span></button>';
+  }
+  
+  function personaV4Stage8NetworkHTML(data,search="",selectedId=""){
+    const net=personaV4Stage8Network(data,search);
+    const selected=net.nodes.find(n=>n.id===selectedId)||null;
+    const evidence=selected?personaV4Stage8Records(data,selected.id,8):[];
+    const coverage=selected?personaV4Stage8EvidenceCoverage(data,selected.id,""):null;
+    return '<div class="v4s8-network"><div class="v4s8-toolbar"><label class="v4s8-search-label" for="v4s8Search">Find contact by name, organization or saved relationship type<input id="v4s8Search" class="input" type="search" maxlength="120" value="'+personaV4Stage8Escape(search)+'" placeholder="Search saved people"></label>'+
+      '<span class="v4s8-muted">'+net.total+' matching contacts'+(net.hidden?" · Showing first 24 alphabetically":"")+'</span></div>'+
+      '<div class="v4s8-network-grid"><div class="v4s8-figure">'+personaV4Stage8Graph(net,selectedId)+
+      '<p class="v4s8-explainer">'+personaV4Stage8Escape(net.meaning)+'</p></div>'+
+      '<div class="v4s8-directory" aria-label="Saved contacts">'+(net.nodes.length?net.nodes.map(n=>'<button class="v4s8-person-row '+(n.id===selectedId?"active":"")+'" data-action="v4NetworkSelect" data-arg="'+personaV4Stage8Escape(n.id)+'" type="button" aria-pressed="'+String(n.id===selectedId)+'">'+
+         '<span class="v4s8-name">'+personaV4Stage8Escape(n.name)+'</span><span class="v4s8-muted">'+n.interactions+' recorded interactions · '+personaV4Stage8Escape(n.type)+'</span></button>').join(""):'<p class="v4s8-muted">No contacts match. Try another search or add a person.</p>')+'</div></div>'+
+      '<div id="v4s8Selection" class="v4s8-detail">'+(selected?'<div class="v4s8-detail-head"><div><h3>'+personaV4Stage8Escape(selected.name)+'</h3><p class="v4s8-muted">'+selected.interactions+' saved interactions · Last recorded interaction '+personaV4Stage8Escape(selected.lastInteraction||"unknown")+'</p></div>'+
+        '<button type="button" class="btn btn-sm" data-action="viewPerson" data-arg="'+personaV4Stage8Escape(selected.id)+'">Open full profile</button></div>'+
+        '<p class="v4s8-muted">Recent source records (up to 8). '+coverage.total+' displayed in the evidence selector (maximum 40). No automated relationship quality score.</p>'+
+        (evidence.length?'<div class="v4s8-sources">'+evidence.map(personaV4Stage8EvidenceRow).join("")+'</div>':'<p class="v4s8-muted">No source records saved for this contact yet.</p>'):
+        '<p class="v4s8-muted">Select a contact on the diagram or list to explore their original recorded evidence.</p>')+'</div></div>';
+  }
+  
+  function personaV4Stage8Mount(view){
+    if(!["relationships","decisionlab","patterns"].includes(view))return;
+    const root=document.getElementById("view"),head=root?.querySelector(".page-head");
+    if(!head)return;
+    const section=document.createElement("section");
+    section.className="card v4s8-panel";section.id="v4s8Panel";
+    if(view==="relationships"){
+      section.setAttribute("aria-label","Interactive relationship network");
+      section.innerHTML='<div class="v4s8-header"><h2>Explore your contact network</h2><span>Based on recorded interactions · local only</span></div>'+
+        '<div id="v4s8NetworkRoot">'+personaV4Stage8NetworkHTML(getState().data,getState()._v4s8Filter||"",getState()._v4s8Selected||"")+'</div>';
+      head.after(section);
+      // Retain classic renderer as a collapsible alternative rather than duplicating charts.
+      const classic=root.querySelector(".network-wrap")?.closest(".card");
+      if(classic){
+        const details=document.createElement("details");details.className="v4s8-classic";
+        const summary=document.createElement("summary");summary.textContent="Show original static network overview";
+        classic.before(details);details.append(summary,classic);
+      }
+      const input=section.querySelector("#v4s8Search");
+      input?.addEventListener("input",()=>{
+        const s=getState();s._v4s8Filter=input.value;
+        personaV4Stage8UpdateNetwork();
+      });
+      section.querySelectorAll('.v4s8-map-node').forEach(g=>g.addEventListener("keydown",e=>{
+        if(e.key==="Enter"||e.key===" "){e.preventDefault();g.click();}
+      }));
+      return;
+    }
+    if(view==="decisionlab"){
+      section.setAttribute("aria-label","Decision evidence preview");
+      section.innerHTML='<div class="v4s8-header"><h2>Evidence before a decision</h2><span>Read-only · no prediction of someone’s intentions</span></div>'+
+        '<p class="v4s8-muted">Review the sources and uncertainty for the person and question selected in Decision Lab. This does not change your decision or save a new record.</p>'+
+        '<button class="btn btn-sm" type="button" data-action="v4DecisionEvidence">Preview recorded evidence</button><div id="v4s8DecisionOutput" aria-live="polite"></div>';
+      head.after(section);return;
+    }
+    const pid=curPersonId();
+    const coverage=personaV4Stage8EvidenceCoverage(getState().data,pid,todayLocal());
+    section.setAttribute("aria-label","Evidence provenance");
+    section.innerHTML='<div class="v4s8-header"><h2>Evidence coverage and limits</h2><span>No person or character ranking</span></div>'+
+      (coverage?'<p class="v4s8-muted">Up to 40 recent saved source records for the selected person: '+coverage.total+' displayed · '+coverage.recent+' dated within 90 days · '+coverage.undated+' without recorded dates.</p>':
+        '<p class="v4s8-muted">Choose a person from the top context selector to inspect their recorded sources.</p>')+
+      '<p class="v4s8-muted">Patterns depend on the records available. Sparse or context-specific evidence cannot prove motivation or causation.</p>';
+    head.after(section);
+  }
+  
+  function personaV4Stage8UpdateNetwork(){
+    const section=document.getElementById("v4s8NetworkRoot");
+    if(!section)return;
+    const s=getState(),input=document.getElementById("v4s8Search");
+    const focused=document.activeElement===input;
+    const caret=focused?input.selectionStart:null;
+    section.innerHTML=personaV4Stage8NetworkHTML(s.data,s._v4s8Filter||"",s._v4s8Selected||"");
+    const next=section.querySelector("#v4s8Search");
+    next?.addEventListener("input",()=>{s._v4s8Filter=next.value;personaV4Stage8UpdateNetwork();});
+    section.querySelectorAll(".v4s8-map-node").forEach(g=>g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();g.click();}}));
+    if(focused&&next){next.focus();if(caret!==null)next.setSelectionRange(caret,caret);}
+  }
+  
+  function personaV4Stage8SelectPerson(id){
+    if(!(getState().data.people||[]).some(p=>p.id===id))return;
+    getState()._v4s8Selected=id;personaV4Stage8UpdateNetwork();
+  }
+  
+  function personaV4Stage8OpenRecord(arg){
+    const [store,id,personId]=String(arg||"").split("|");
+    if(!["interactions","observations","memories","commitments","followUps","decisions"].includes(store)||!id||!personId)return;
+    const r=(getState().data[store]||[]).find(x=>x.id===id&&x.personId===personId);
+    if(!r)return;
+    const rows=personaV4Stage8Records(getState().data,personId,40),entry=rows.find(x=>x.store===store&&x.id===id);
+    const title=entry?.text||"Recorded item",extra=typeof r.interpretation==="string"?r.interpretation:"";
+    const body='<p class="v4s8-source-record">'+personaV4Stage8Escape(title)+'</p>'+
+       (extra?'<div class="v4s8-inference"><strong>Saved interpretation (not independently verified)</strong><p>'+personaV4Stage8Escape(extra)+'</p></div>':"")+
+       '<p class="v4s8-muted">Original record: '+personaV4Stage8Escape(store)+" · "+personaV4Stage8Escape(id)+'</p>';
+    const btn=document.createElement("button");btn.className="btn btn-primary";btn.textContent="Close";
+    const m=openModal({title:"Source record",subtitle:"Local · original evidence",body,footer:btn});
+    btn.onclick=closeModal;
+  }
+  
+  function personaV4Stage8DecisionEvidence(){
+    const root=document.getElementById("view");
+    const selected=root?.querySelector("#dl_person")?.value||"";
+    const question=root?.querySelector("#dl_decision")?.value||"";
+    const impact=root?.querySelector("#dl_impact")?.value||"";
+    const rev=root?.querySelector("#dl_rev")?.value||"";
+    const out=root?.querySelector("#v4s8DecisionOutput");
+    if(!out)return;
+    const result=personaV4Stage8DecisionPreview(getState().data,selected,question,impact,rev);
+    if(!result.ok){out.innerHTML='<p class="v4s8-muted">'+personaV4Stage8Escape(result.message)+'</p>';return;}
+    out.innerHTML='<div class="v4s8-review"><p><strong>Question:</strong> '+personaV4Stage8Escape(result.question)+'</p>'+
+      '<p class="v4s8-muted">Impact: '+personaV4Stage8Escape(result.impact)+' · Reversibility: '+personaV4Stage8Escape(result.reversibility)+'</p>'+
+      (result.cautions.length?'<ul>'+result.cautions.map(x=>'<li>'+personaV4Stage8Escape(x)+'</li>').join("")+'</ul>':"")+
+      '<h3>Relevant recorded context (up to 6)</h3>'+result.records.map(personaV4Stage8EvidenceRow).join("")+
+      '<p class="v4s8-muted">'+personaV4Stage8Escape(result.note)+'</p></div>';
+  }
+  /* PERSONA_V4_STAGE8_END */
 
   // js/storage.js
   var storage_exports = {};
@@ -9049,6 +9300,7 @@ self.onmessage = function (e) {
     personaV4MountImportControls(v);
     personaV4Stage6MountPlanner(v);
     personaV4Stage7MountCopilot(v);
+    personaV4Stage8Mount(v);
     injectHelpButton(v);
     wire(html);
     bindView(v);
@@ -9708,6 +9960,15 @@ self.onmessage = function (e) {
         break;
       case "deleteRelationshipGoal":
         deleteRecord("relationshipGoals", arg);
+        break;
+      case "v4NetworkSelect":
+        personaV4Stage8SelectPerson(arg);
+        break;
+      case "v4NetworkSource":
+        personaV4Stage8OpenRecord(arg);
+        break;
+      case "v4DecisionEvidence":
+        personaV4Stage8DecisionEvidence();
         break;
       case "v4ConversationBrief":
         personaV4Stage7Brief();
